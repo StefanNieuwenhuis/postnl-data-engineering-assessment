@@ -118,3 +118,12 @@ class ConfigurationManager:
         bucket = self.get_bucket(data_layer)
 
         return f"{bucket}/{str(rel)}"
+
+    def get_datasets(self) -> Dict[str, Any]:
+        """
+        Get the datasets configuration (source, format, {layer}_table, etc. per dataset)
+
+        :return: Dict of {[dataset name] -> {source, format, ...}}
+        """
+
+        return self.get("datasets")

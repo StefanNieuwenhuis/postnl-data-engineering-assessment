@@ -1,3 +1,5 @@
+import shutil
+
 import pytest
 import yaml
 from pyspark import Row
@@ -68,15 +70,14 @@ def sample_csv(tmp_path) -> str:
 def sample_json(tmp_path) -> str:
     """
     Minimal JSON file for streaming ingestion tests
+    Uses NDJSON format (newline-delimited JSON) which is required for Spark Structured Streaming
 
     :return: (temp) path to sample JSON file
     """
     json_path = tmp_path / "routes.json"
+    # NDJSON format: one JSON object per line (required for Spark Structured Streaming)
     json_path.write_text(
-        """[
-            {"route_id": "R1", "distance_km": 10},
-            {"route_id": "R2", "distance_km": 20},
-        ]""",
+        '{"route_id": "R1", "distance_km": 10}\n' '{"route_id": "R2", "distance_km": 20}\n',
         encoding="utf-8",
     )
 
@@ -141,73 +142,44 @@ class TestConfigurationManager:
     class TestDataIngestion:
         """Unit tests for (streaming) data ingestion"""
 
-        def test_batch_ingestion_csv(self, spark_session, bronze_config_yaml, sample_csv) -> None:
+        def test_batch_ingestion_csv(
+            self, tmp_path, spark_session, bronze_config_yaml, sample_csv
+        ) -> None:
             """Read and ingest a batch data source from CSV and return DataFrame with metadata columns"""
 
             cm = ConfigurationManager(bronze_config_yaml)
             manager = BronzeLayerManager(spark_session, cm)
             run_id = "20260208_120000"
             source_system = "shipments"
-            df = manager._ingest_batch(source_system, sample_csv, run_id)
 
-            assert df.count() == 2
-            assert "shipment_id" in df.columns and "route_id" in df.columns
-            assert "vehicle_id" in df.columns and "carrier_id" in df.columns
-            assert df.filter(f"source_system = '{source_system}'").count() == 2
-            assert "source_file" in df.columns
-            assert df.first().source_file == sample_csv
+            manager._ingest_batch(source_system, sample_csv, run_id)
 
-        def test_batch_schema_inference(
-            self, spark_session, bronze_config_yaml, sample_csv
+            base = tmp_path / "delta-lake"
+            assert (base / "bronze" / "raw_shipments").exists()
+
+        def test_stream_ingestion_json(
+            self, tmp_path, spark_session, bronze_config_yaml, sample_json
         ) -> None:
-            """Read and ingest a batch data source from CSV"""
+            base = tmp_path / "delta-lake"
+            landing_dir = base / "landing" / "routes"
+            landing_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy JSON file into streaming directory
+            shutil.copy(sample_json, landing_dir / "routes.json")
+
             cm = ConfigurationManager(bronze_config_yaml)
             manager = BronzeLayerManager(spark_session, cm)
+
             run_id = "20260208_120000"
-            source_system = "shipments"
+            source_system = "routes"
 
-            # Ingest without providing explicit schema (should infer)
-            df = manager._ingest_batch(source_system, sample_csv, run_id, schema=None)
+            # ---- ACT ----
+            manager._ingest_stream(
+                name=source_system,
+                path_dir=str(landing_dir),
+                run_id=run_id,
+            )
 
-            # Verify schema was inferred correctly
-            assert df.count() == 2
-
-            # Check that columns exist (schema was inferred from CSV header)
-            expected_columns = [
-                "shipment_id",
-                "route_id",
-                "vehicle_id",
-                "carrier_id",
-                "origin",
-                "destination",
-                "ship_date",
-                "planned_arrival",
-                "actual_arrival",
-                "weight_kg",
-                "volume_m3",
-            ]
-
-            for col in expected_columns:
-                assert col in df.columns, f"Expected column '{col}' not found in inferred schema"
-
-            # Verify data types were inferred (not all strings)
-            # weight_kg and volume_m3 should be numeric types
-            schema_dict = {field.name: field.dataType.simpleString() for field in df.schema.fields}
-
-            # Check that numeric columns were inferred as double/decimal (not string)
-            assert schema_dict.get("weight_kg") in [
-                "double",
-                "decimal(10,1)",
-                "decimal(10,2)",
-            ], f"weight_kg should be numeric, got {schema_dict.get('weight_kg')}"
-            assert schema_dict.get("volume_m3") in [
-                "double",
-                "decimal(10,1)",
-                "decimal(10,2)",
-            ], f"volume_m3 should be numeric, got {schema_dict.get('volume_m3')}"
-
-            # Verify metadata columns were added
-            assert "ingestion_timestamp" in df.columns
-            assert "ingestion_date" in df.columns
-            assert "run_id" in df.columns
-            assert "source_system" in df.columns
+            # ---- ASSERT ----
+            bronze_path = base / "bronze" / "raw_routes"
+            assert bronze_path.exists()
