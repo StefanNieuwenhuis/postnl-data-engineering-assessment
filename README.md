@@ -48,4 +48,5 @@ docker compose up -d
 ![Docker Compose has completed](./assets/DockerComposeComplete.png)
 
 Check out the MinIO UI at: http://localhost:9000
+
 RAW data should be _"ingested"_ in the `landing` bucket at: http://localhost:9001/browser/landing/sources 
