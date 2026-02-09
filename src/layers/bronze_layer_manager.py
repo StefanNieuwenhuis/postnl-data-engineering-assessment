@@ -3,9 +3,10 @@ from typing import Dict, List, Optional
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, current_date, current_timestamp, input_file_name, lit
-from pyspark.sql.types import StringType, StructField, StructType
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 
 from core.configuration_manager import ConfigurationManager
+from schema_registry.schema_registry import SCHEMAS
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,12 @@ class BronzeLayerManager:
         return result
 
     def _ingest_batch(
-        self, dataset_name: str, path: str, run_id: str, schema: Optional[StructType] = None
+        self,
+        dataset_name: str,
+        path: str,
+        run_id: str,
+        data_format: str,
+        schema: Optional[StructType] = None,
     ) -> DataFrame:
         """
         Ingest data from a batch data source
@@ -60,6 +66,7 @@ class BronzeLayerManager:
 
         :param dataset_name: Data source name (e.g. 'shipments', 'vehicles')
         :param path: Source file path (landing path from config)
+        :param data_format: Data format
         :param schema: Optional PySpark StructType
         :return: DataFrame with ingested data and bronze metadata columns.
         """
@@ -75,7 +82,7 @@ class BronzeLayerManager:
             logger.info("Schema inferred by Spark")
 
         # Create DataFrame from file location
-        df = reader.csv(path)
+        df = reader.load(path, format=data_format)
 
         # Add metadata
         df = self._add_metadata(df, run_id, dataset_name, source_file=path)
@@ -98,50 +105,58 @@ class BronzeLayerManager:
 
     def _ingest_stream(
         self,
-        name: str,
+        dataset_name: str,
         path_dir: str,
         run_id: str,
-    ) -> DataFrame:
+        data_format: str,
+    ) -> None:
         """
         Ingest data from a streaming data source
 
         Uses Spark Structured Streaming with trigger(availableNow=True) to process all files
         in the directory. Each micro-batch is optionally validated and then written.
 
-        :param name: Data source name (e.g. 'routes', 'weather')
+        :param dataset_name: Data source name (e.g. 'routes', 'weather')
         :param path_dir: Landing directory (e.g. s3a://landing/sources/routes)
         :param run_id: The current pipeline run ID for metadata
-        :param data_quality_validator: Optional Great Expectations (GX) validator
-        :return: DataFrame with ingested data and bronze metadata columns.
+        :param data_format: Data format
         """
-        logger.info(f"Streaming ingest {name} from directory: {path_dir}")
+        logger.info(f"Streaming ingest {dataset_name} from directory: {path_dir}")
 
-        # Enable Spark to infer schema automatically
-        self.spark.sql("set spark.sql.streaming.schemaInference=true")
+        # For streaming JSON, a schema has to be inferred first
+        if data_format == "json":
+            # get schema from registry for dataset
+            schema = SCHEMAS.get(dataset_name)
 
-        # Read JSON stream
-        stream_df = self.spark.readStream.json(path_dir)
+            if schema is None:
+                raise ValueError(f"No schema defined for dataset: {dataset_name}")
 
-        # Add bronze metadata
-        stream_with_meta = self._add_metadata(stream_df, run_id, name, source_file=path_dir)
+            logger.info(f"Using predefined schema for {dataset_name}")
 
-        checkpoint_path = f"{self.cm.get_bucket('bronze')}/checkpoints/{name}"
-        output_path = self.cm.get_layer_path("bronze", name)
+            # No multiLine: expect NDJSON (one JSON object per line) for streaming
+            stream_df = self.spark.readStream.schema(schema).json(path_dir)
+        else:
+            # For other formats, use load() with format
+            stream_df = self.spark.readStream.load(path_dir, format=data_format)
+
+        # Add bronze metadata (pass path_dir so source_file is set for streaming)
+        stream_with_meta = self._add_metadata(stream_df, run_id, dataset_name, source_file=path_dir)
+
+        checkpoint_path = f"{self.cm.get_bucket('bronze')}/checkpoints/{dataset_name}"
+        output_path = self.cm.get_layer_path("bronze", dataset_name)
 
         # Simple streaming sink: append to Delta, process all available files, then stop
         query = (
             stream_with_meta.writeStream.format("delta")
             .outputMode("append")
-            .option("checkpointLocation", checkpoint_path)
             .trigger(availableNow=True)
+            .option("checkpointLocation", checkpoint_path)
+            .partitionBy("ingestion_date")
             .start(output_path)
         )
-
         query.awaitTermination()
 
-        logger.info(f"Stream ingestion completed for {name}")
-        # Return a batch DataFrame view of the ingested bronze table
-        return self.read(name, data_format="delta", is_stream=False)
+        logger.info(f"Stream ingestion completed for {dataset_name}")
 
     def ingest_all(self, run_id: str) -> None:
         """
@@ -159,11 +174,15 @@ class BronzeLayerManager:
             path = self.cm.get_layer_path("landing", name)
             config = config or {}
             is_stream = config.get("stream") is True
+            format = config.get("format")
 
             if is_stream:
-                self._ingest_stream(name, path, run_id)
+                logger.info(f"Start streaming ingest {name} from path: {path}")
+                df = self._ingest_stream(name, path, run_id, format)
             else:
-                self._ingest_batch(name, path, run_id)
+                logger.info(f"Start batch ingesting {name} from path: {path}")
+
+                df = self._ingest_batch(name, path, run_id, format)
 
     def read(
         self,
