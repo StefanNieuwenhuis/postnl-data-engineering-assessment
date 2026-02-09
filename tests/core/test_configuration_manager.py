@@ -90,9 +90,18 @@ class TestConfigurationManager:
                 ConfigurationManager(empty_config_yaml)
 
     class TestGetEnvironment:
-        """Tests for get_environment()"""
+        """Tests for environment detection"""
 
-        def test_get_environment_returns_detected_environment(self, valid_config_yaml):
+        def test_get_environment_returns_detected_environment(self, valid_config_yaml) -> None:
             """get_environment returns the value set at init."""
             cm = ConfigurationManager(valid_config_yaml)
             assert cm._detect_environment() == "local"
+
+    class TestGetBucket:
+        """Tests for bucket retrieval"""
+
+        def test_get_bucket(self, valid_config_yaml) -> None:
+            """get_bucket returns the bucket for a layer"""
+            cm = ConfigurationManager(valid_config_yaml)
+
+            assert cm.get_bucket("landing") == "s3a://landing"

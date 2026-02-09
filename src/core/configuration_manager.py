@@ -46,3 +46,36 @@ class ConfigurationManager:
             return "databricks"
         else:
             return self.config.get("environment", {}).get("name", "local")
+
+    def get(self, *keys, default=None) -> Any:
+        """
+        Get a nested configuration value by traversing keys.
+
+        :param keys: Nested keys to traverse (e.g. `storage` => `local` => `buckets` => `landing` => `value`).
+        :param default: Value returned if any key is missing.
+        :return: Configuration value at the given path, or default.
+        """
+
+        value = self.config
+        for key in keys:
+            if isinstance(value, dict):
+                value = value.get(key, default)
+            else:
+                return default
+        return value
+
+    def get_bucket(self, data_layer: str) -> str:
+        """
+        Retrieve the bucket location from configuration
+
+        :param data_layer: Data layer name
+        :return: Bucket location
+        :raises KeyError: When the layer and/or bucket is unavailable in the configuration
+        """
+
+        bucket = self.get("storage", self.environment, "buckets", data_layer)
+
+        if not bucket:
+            raise KeyError(f"Unknown layer or missing bucket: {data_layer}")
+
+        return str(bucket)
