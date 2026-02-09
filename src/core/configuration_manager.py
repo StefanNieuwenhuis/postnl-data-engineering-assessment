@@ -6,6 +6,14 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+# Mapping of {[layer name] -> dataset configuration key} for path within a layer's bucket
+LAYER_DATASET_KEYS: Dict[str, str] = {
+    "landing": "source",
+    "bronze": "bronze_table",
+    "silver": "silver_table",
+    "gold": "gold_table",
+}
+
 class ConfigurationManager:
     """This class is the main interface between configuration YAMLs and the application"""
 
@@ -79,3 +87,27 @@ class ConfigurationManager:
             raise KeyError(f"Unknown layer or missing bucket: {data_layer}")
 
         return str(bucket)
+
+    def get_layer_path(self, data_layer: str, dataset_name: str) -> str:
+        """
+        Retrieve full path for a dataset in a given data layer (bucket + path within bucket).
+
+        :param data_layer: Desired data layer (`landing`, `bronze`, `silver`, `gold`)
+        :param dataset_name: Key in datasets
+        :return: Full path string for a dataset in the data layer
+        """
+        key = LAYER_DATASET_KEYS.get(data_layer)
+
+        if not key:
+            raise KeyError(
+                f"Unknown data layer: {data_layer}. Use one of: {list(LAYER_DATASET_KEYS)}"
+            )
+
+        # Reject missing or blank path; empty or whitespace-only string yields bucket/ or bucket// - i.e. invalid dataset path
+        rel = self.get("datasets", dataset_name, key)
+        if rel is None or (isinstance(rel, str) and not rel.strip()):
+            raise KeyError(f"Dataset {dataset_name} has no path for layer {data_layer} (key {key}")
+
+        bucket = self.get_bucket(data_layer)
+
+        return f"{bucket}/{str(rel)}"

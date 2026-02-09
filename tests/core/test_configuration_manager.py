@@ -97,7 +97,7 @@ class TestConfigurationManager:
             cm = ConfigurationManager(valid_config_yaml)
             assert cm._detect_environment() == "local"
 
-    class TestGetBucket:
+    class TestGetBucketsAndLayers:
         """Tests for bucket retrieval"""
 
         def test_get_bucket(self, valid_config_yaml) -> None:
@@ -105,3 +105,33 @@ class TestConfigurationManager:
             cm = ConfigurationManager(valid_config_yaml)
 
             assert cm.get_bucket("landing") == "s3a://landing"
+
+        def test_get_unknown_bucket_raises(self, valid_config_yaml) -> None:
+            """get bucket raises KeyError"""
+            cm = ConfigurationManager(valid_config_yaml)
+
+            with pytest.raises(KeyError) as exc_info:
+                cm.get_bucket("nonexistent_bucket")
+            assert "nonexistent_bucket" in str(exc_info.value)
+
+
+        def test_get_layer_path(self, valid_config_yaml) -> None:
+            """get_layer_path returns the bucket + dataset source"""
+            cm = ConfigurationManager(valid_config_yaml)
+            path = cm.get_layer_path("landing", "routes")
+
+            assert path == "s3a://landing/sources/routes"
+
+        def test_get_layer_path_unknown_dataset_raises(self, valid_config_yaml):
+            """get_layer_path with unknown dataset raises KeyError."""
+            cm = ConfigurationManager(valid_config_yaml)
+            with pytest.raises(KeyError) as exc_info:
+                cm.get_layer_path("landing", "nonexistent_table")
+            assert "nonexistent_table" in str(exc_info.value)
+
+        def test_get_layer_path_unknown_layer_raises(self, valid_config_yaml):
+            """get_layer_path with unknown layer raises KeyError."""
+            cm = ConfigurationManager(valid_config_yaml)
+            with pytest.raises(KeyError) as exc_info:
+                cm.get_layer_path("invalid_layer", "routes")
+            assert "invalid_layer" in str(exc_info.value)
