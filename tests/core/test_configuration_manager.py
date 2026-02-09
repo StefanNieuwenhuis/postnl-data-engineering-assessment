@@ -43,6 +43,7 @@ def valid_config_yaml(tmp_path) -> str:
     config_path.write_text(yaml.dump(config), encoding="utf-8")
     return str(config_path)
 
+
 @pytest.fixture
 def empty_config_yaml(tmp_path):
     """
@@ -53,6 +54,7 @@ def empty_config_yaml(tmp_path):
     path = tmp_path / "empty.yaml"
     path.write_text("", encoding="utf-8")
     return str(path)
+
 
 class TestConfigurationManager:
     """Unit tests for ConfigurationManager"""
@@ -113,7 +115,6 @@ class TestConfigurationManager:
             with pytest.raises(KeyError) as exc_info:
                 cm.get_bucket("nonexistent_bucket")
             assert "nonexistent_bucket" in str(exc_info.value)
-
 
         def test_get_layer_path(self, valid_config_yaml) -> None:
             """get_layer_path returns the bucket + dataset source"""

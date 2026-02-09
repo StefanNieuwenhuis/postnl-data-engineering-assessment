@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
 import yaml
 
@@ -13,6 +13,7 @@ LAYER_DATASET_KEYS: Dict[str, str] = {
     "silver": "silver_table",
     "gold": "gold_table",
 }
+
 
 class ConfigurationManager:
     """This class is the main interface between configuration YAMLs and the application"""
@@ -117,3 +118,12 @@ class ConfigurationManager:
         bucket = self.get_bucket(data_layer)
 
         return f"{bucket}/{str(rel)}"
+
+    def get_datasets(self) -> Dict[str, Any]:
+        """
+        Get the datasets configuration (source, format, {layer}_table, etc. per dataset)
+
+        :return: Dict of {[dataset name] -> {source, format, ...}}
+        """
+
+        return self.get("datasets")
