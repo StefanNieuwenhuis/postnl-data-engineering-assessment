@@ -1,0 +1,42 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    hostname: minio
+    env_file:
+      - .env
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    volumes:
+      - minio_data:/data
+    networks:
+      - app_net
+
+  minio-helper:
+    image: minio/mc:latest
+    container_name: minio-helper
+    env_file:
+      - .env
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/scripts/init-minio.sh"]
+    volumes:
+      - ./scripts/init-minio.sh:/scripts/init-minio.sh:ro
+      - ./data/raw:/seed:ro
+    networks:
+      - app_net
+
+volumes:
+  minio_data:
+
+networks:
+  app_net:
+    driver: bridge
