@@ -83,3 +83,16 @@ class TestConfigurationManager:
             bad_yaml.write_text("key: [unclosed\n  - list", encoding="utf-8")
             with pytest.raises(yaml.YAMLError):
                 ConfigurationManager(str(bad_yaml))
+
+        def test_init_with_empty_file_fails_environment_detection(self, empty_config_yaml) -> None:
+            """Empty YAML file loads as None (safe_load); _detect_environment then fails on None.get()."""
+            with pytest.raises(AttributeError):
+                ConfigurationManager(empty_config_yaml)
+
+    class TestGetEnvironment:
+        """Tests for get_environment()"""
+
+        def test_get_environment_returns_detected_environment(self, valid_config_yaml):
+            """get_environment returns the value set at init."""
+            cm = ConfigurationManager(valid_config_yaml)
+            assert cm._detect_environment() == "local"

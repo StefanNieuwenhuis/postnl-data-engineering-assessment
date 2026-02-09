@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Dict, Any
 
 import yaml
@@ -16,6 +17,7 @@ class ConfigurationManager:
         """
         self.config_path = config_path
         self.config = self._load_config()
+        self.environment = self._detect_environment()
 
         logger.info(f"Configuration loaded successfully")
 
@@ -38,3 +40,9 @@ class ConfigurationManager:
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML: {e}")
             raise
+
+    def _detect_environment(self) -> str:
+        if "DATABRICKS_RUNTIME_VERSION" in os.environ:
+            return "databricks"
+        else:
+            return self.config.get("environment", {}).get("name", "local")
