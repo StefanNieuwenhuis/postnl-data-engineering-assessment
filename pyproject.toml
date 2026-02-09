@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "black>=26.1.0",
     "delta-spark==3.2.0",
+    "isort>=7.0.0",
     "pyspark==3.5.0",
     "pytest>=9.0.2",
     "pyyaml>=6.0.3",
@@ -14,3 +16,15 @@ dependencies = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''/(_delta_log|\.pytest_cache)/'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = []
+skip = [".venv", ".pytest_cache", "_delta_log", ".ipynb_checkpoints"]
