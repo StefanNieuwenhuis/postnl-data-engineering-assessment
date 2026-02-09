@@ -1,9 +1,9 @@
 from typing import Any, Generator
 
 import pytest
-
-from pyspark.sql import SparkSession
 from delta import configure_spark_with_delta_pip
+from pyspark.sql import SparkSession
+
 
 @pytest.fixture(scope="session")
 def spark_session() -> Generator[SparkSession, Any, None]:

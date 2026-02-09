@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import current_date, current_timestamp, lit
 from pyspark.sql.types import StructType
 
 from core.configuration_manager import ConfigurationManager
@@ -34,7 +35,17 @@ class BronzeLayerManager:
         :param source_file: full path of the ingested file
         :return: DataFrame with bronze layer metadata columns
         """
-        pass
+        result = (
+            df.withColumn("ingestion_timestamp", current_timestamp())
+            .withColumn("ingestion_date", current_date())
+            .withColumn("run_id", lit(run_id))
+            .withColumn("source_system", lit(source))
+        )
+
+        if source_file is not None:
+            result = result.withColumn("source_file", lit(source_file))
+
+        return result
 
     def _ingest_batch(
         self, name: str, path: str, run_id: str, schema: Optional[StructType] = None
