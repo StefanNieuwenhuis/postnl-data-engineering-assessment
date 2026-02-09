@@ -1,0 +1,33 @@
+# Per-layer buckets: landing, bronze, silver, gold (paths are bucket root).
+storage:
+  local:
+    buckets:
+      landing: "s3a://landing"
+      bronze: "s3a://bronze"
+      silver: "s3a://silver"
+      gold: "s3a://gold"
+  databricks:
+    buckets:
+
+# Per-dataset: path within each layer bucket.
+# source = path in landing (file or directory). When stream: true, source must be a directory.
+# stream: true = Spark Structured Streaming (file stream).
+datasets:
+  routes:
+    source: "sources/routes"
+    format: "json"
+    stream: true
+    bronze_table: "raw_routes"
+  shipments:
+    source: "sources/shipments.csv"
+    format: "csv"
+    bronze_table: "raw_shipments"
+  vehicles:
+    source: "sources/vehicles.csv"
+    format: "csv"
+    bronze_table: "raw_vehicles"
+  weather:
+    source: "sources/weather"
+    format: "json"
+    stream: true
+    bronze_table: "raw_weather"
