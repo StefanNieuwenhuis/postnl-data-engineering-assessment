@@ -146,12 +146,16 @@ class TestConfigurationManager:
 
             cm = ConfigurationManager(bronze_config_yaml)
             manager = BronzeLayerManager(spark_session, cm)
+            run_id = "20260208_120000"
             source_system = "shipments"
-            df = manager._ingest_batch(source_system, sample_csv)
+            df = manager._ingest_batch(source_system, sample_csv, run_id)
 
             assert df.count() == 2
             assert "shipment_id" in df.columns and "route_id" in df.columns
             assert "vehicle_id" in df.columns and "carrier_id" in df.columns
+            assert df.filter(f"source_system = '{source_system}'").count() == 2
+            assert "source_file" in df.columns
+            assert df.first().source_file == sample_csv
 
         def test_batch_schema_inference(
             self, spark_session, bronze_config_yaml, sample_csv
@@ -159,10 +163,11 @@ class TestConfigurationManager:
             """Read and ingest a batch data source from CSV"""
             cm = ConfigurationManager(bronze_config_yaml)
             manager = BronzeLayerManager(spark_session, cm)
+            run_id = "20260208_120000"
             source_system = "shipments"
 
             # Ingest without providing explicit schema (should infer)
-            df = manager._ingest_batch(source_system, sample_csv, schema=None)
+            df = manager._ingest_batch(source_system, sample_csv, run_id, schema=None)
 
             # Verify schema was inferred correctly
             assert df.count() == 2
@@ -200,3 +205,9 @@ class TestConfigurationManager:
                 "decimal(10,1)",
                 "decimal(10,2)",
             ], f"volume_m3 should be numeric, got {schema_dict.get('volume_m3')}"
+
+            # Verify metadata columns were added
+            assert "ingestion_timestamp" in df.columns
+            assert "ingestion_date" in df.columns
+            assert "run_id" in df.columns
+            assert "source_system" in df.columns

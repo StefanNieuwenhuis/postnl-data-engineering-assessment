@@ -47,7 +47,7 @@ class BronzeLayerManager:
 
         return result
 
-    def _ingest_batch(self, name: str, path: str, schema: Optional[StructType] = None) -> DataFrame:
+    def _ingest_batch(self, name: str, path: str, run_id: str, schema: Optional[StructType] = None) -> DataFrame:
         """
         Ingest data from a batch data source
         When provided, the schema is enforced. Otherwise, Spark infers the schema.
@@ -68,7 +68,11 @@ class BronzeLayerManager:
             reader.option("inferSchema", "true")
             logger.info("Schema inferred by Spark")
 
+        # Create DataFrame from CSV
         df = reader.csv(path)
+
+        # Add metadata
+        df = self._add_metadata(df, run_id, name, source_file=path)
         count = df.count()
 
         logger.info(f"Ingestion complete. Ingested {count:,} {name} records")
