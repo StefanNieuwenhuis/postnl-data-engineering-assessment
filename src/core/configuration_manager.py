@@ -55,6 +55,12 @@ class ConfigurationManager:
         else:
             return self.config.get("environment", {}).get("name", "local")
 
+    def get_environment(self) -> str:
+        """
+        Getter that retrieves the currently active environment
+        """
+        return self.environment
+
     def get(self, *keys, default=None) -> Any:
         """
         Get a nested configuration value by traversing keys.
