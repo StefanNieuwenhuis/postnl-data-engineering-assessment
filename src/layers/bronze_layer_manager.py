@@ -47,21 +47,33 @@ class BronzeLayerManager:
 
         return result
 
-    def _ingest_batch(
-        self, name: str, path: str, run_id: str, schema: Optional[StructType] = None
-    ) -> DataFrame:
+    def _ingest_batch(self, name: str, path: str, schema: Optional[StructType] = None) -> DataFrame:
         """
         Ingest data from a batch data source
         When provided, the schema is enforced. Otherwise, Spark infers the schema.
 
         :param name: Data source name (e.g. 'shipments', 'vehicles')
         :param path: Source file path (landing path from config)
-        :param run_id: The current pipeline run ID for metadata
         :param schema: Optional PySpark StructType
         :return: DataFrame with ingested data and bronze metadata columns.
         """
 
-        pass
+        logger.info(f"Batch ingesting {name} from: {path}")
+        reader = self.spark.read.option("header", "true")
+
+        if schema is not None:
+            reader.option("schema", schema)
+            logger.info("Custom schema applied")
+        else:
+            reader.option("inferSchema", "true")
+            logger.info("Schema inferred by Spark")
+
+        df = reader.csv(path)
+        count = df.count()
+
+        logger.info(f"Ingestion complete. Ingested {count:,} {name} records")
+
+        return df
 
     def _ingest_stream(self, name: str, path_dir: str, run_id: str) -> DataFrame:
         """

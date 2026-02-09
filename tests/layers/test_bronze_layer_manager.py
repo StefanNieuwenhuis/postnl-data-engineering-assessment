@@ -137,3 +137,72 @@ class TestConfigurationManager:
 
             assert row.run_id == run_id
             assert row.source_system == source
+
+    class TestDataIngestion:
+        """Unit tests for (streaming) data ingestion"""
+
+        def test_batch_ingestion_csv(self, spark_session, bronze_config_yaml, sample_csv) -> None:
+            """Read and ingest a batch data source from CSV and return DataFrame with metadata columns"""
+
+            cm = ConfigurationManager(bronze_config_yaml)
+            manager = BronzeLayerManager(spark_session, cm)
+            source_system = "shipments"
+            df = manager._ingest_batch(source_system, sample_csv)
+
+            assert df.count() == 2
+            assert "shipment_id" in df.columns and "route_id" in df.columns
+            assert "vehicle_id" in df.columns and "carrier_id" in df.columns
+
+        def test_batch_schema_inference(
+            self, spark_session, bronze_config_yaml, sample_csv
+        ) -> None:
+            """Read and ingest a batch data source from CSV"""
+            cm = ConfigurationManager(bronze_config_yaml)
+            manager = BronzeLayerManager(spark_session, cm)
+            source_system = "shipments"
+
+            # Ingest without providing explicit schema (should infer)
+            df = manager.ingest_batch(source_system, sample_csv, schema=None)
+
+            # Verify schema was inferred correctly
+            assert df.count() == 2
+
+            # Check that columns exist (schema was inferred from CSV header)
+            expected_columns = [
+                "shipment_id",
+                "route_id",
+                "vehicle_id",
+                "carrier_id",
+                "origin",
+                "destination",
+                "ship_date",
+                "planned_arrival",
+                "actual_arrival",
+                "weight_kg",
+                "volume_m3",
+            ]
+
+            for col in expected_columns:
+                assert col in df.columns, f"Expected column '{col}' not found in inferred schema"
+
+            # Verify data types were inferred (not all strings)
+            # weight_kg and volume_m3 should be numeric types
+            schema_dict = {field.name: field.dataType.simpleString() for field in df.schema.fields}
+
+            # Check that numeric columns were inferred as double/decimal (not string)
+            assert schema_dict.get("weight_kg") in [
+                "double",
+                "decimal(10,1)",
+                "decimal(10,2)",
+            ], f"weight_kg should be numeric, got {schema_dict.get('weight_kg')}"
+            assert schema_dict.get("volume_m3") in [
+                "double",
+                "decimal(10,1)",
+                "decimal(10,2)",
+            ], f"volume_m3 should be numeric, got {schema_dict.get('volume_m3')}"
+
+            # Verify metadata columns were added
+            assert "ingestion_timestamp" in df.columns
+            assert "ingestion_date" in df.columns
+            assert "run_id" in df.columns
+            assert "source_system" in df.columns
