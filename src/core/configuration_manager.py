@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
 import yaml
 
@@ -13,6 +13,7 @@ LAYER_DATASET_KEYS: Dict[str, str] = {
     "silver": "silver_table",
     "gold": "gold_table",
 }
+
 
 class ConfigurationManager:
     """This class is the main interface between configuration YAMLs and the application"""

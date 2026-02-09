@@ -1,12 +1,13 @@
 import logging
 from typing import Optional
 
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType
 
 from core.configuration_manager import ConfigurationManager
 
 logger = logging.getLogger(__name__)
+
 
 class BronzeLayerManager:
     """Handles Bronze Layer RAW data ingestion"""
@@ -21,7 +22,9 @@ class BronzeLayerManager:
         self.spark = spark
         self.cm = cm
 
-    def _add_metadata(self, df: DataFrame, run_id: str, source: str, source_file: Optional[str] = None) -> DataFrame:
+    def _add_metadata(
+        self, df: DataFrame, run_id: str, source: str, source_file: Optional[str] = None
+    ) -> DataFrame:
         """
         Add bronze layer metadata columns to improve traceability and partitioning
 
@@ -33,7 +36,9 @@ class BronzeLayerManager:
         """
         pass
 
-    def _ingest_batch(self, name: str, path: str, run_id: str, schema: Optional[StructType] = None) -> DataFrame:
+    def _ingest_batch(
+        self, name: str, path: str, run_id: str, schema: Optional[StructType] = None
+    ) -> DataFrame:
         """
         Ingest data from a batch data source
         When provided, the schema is enforced. Otherwise, Spark infers the schema.
@@ -94,5 +99,3 @@ class BronzeLayerManager:
         """
 
         pass
-
-
