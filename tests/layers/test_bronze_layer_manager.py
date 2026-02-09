@@ -33,7 +33,7 @@ def bronze_config_yaml(tmp_path) -> str:
             "routes": {
                 "source": "sources/routes.json",
                 "format": "json",
-                "stream": "true",
+                "stream": True,
                 "bronze_table": "raw_routes",
             },
             "shipments": {
@@ -152,7 +152,7 @@ class TestConfigurationManager:
             run_id = "20260208_120000"
             source_system = "shipments"
 
-            manager._ingest_batch(source_system, sample_csv, run_id)
+            manager._ingest_batch(source_system, sample_csv, run_id, data_format="csv")
 
             base = tmp_path / "delta-lake"
             assert (base / "bronze" / "raw_shipments").exists()
@@ -161,11 +161,10 @@ class TestConfigurationManager:
             self, tmp_path, spark_session, bronze_config_yaml, sample_json
         ) -> None:
             base = tmp_path / "delta-lake"
+            # Spark readStream.json() reads from a directory; create one and copy JSON into it
             landing_dir = base / "landing" / "routes"
             landing_dir.mkdir(parents=True, exist_ok=True)
-
-            # Copy JSON file into streaming directory
-            shutil.copy(sample_json, landing_dir / "routes.json")
+            shutil.copy(sample_json, landing_dir / "routes_1.json")
 
             cm = ConfigurationManager(bronze_config_yaml)
             manager = BronzeLayerManager(spark_session, cm)
@@ -173,13 +172,12 @@ class TestConfigurationManager:
             run_id = "20260208_120000"
             source_system = "routes"
 
-            # ---- ACT ----
             manager._ingest_stream(
-                name=source_system,
+                dataset_name=source_system,
                 path_dir=str(landing_dir),
                 run_id=run_id,
+                data_format="json",
             )
 
-            # ---- ASSERT ----
             bronze_path = base / "bronze" / "raw_routes"
             assert bronze_path.exists()
