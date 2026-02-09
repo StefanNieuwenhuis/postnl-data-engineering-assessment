@@ -17,6 +17,8 @@ class ConfigurationManager:
         self.config_path = config_path
         self.config = self._load_config()
 
+        logger.info(f"Configuration loaded successfully")
+
     def _load_config(self) -> Dict[str, Any]:
         """
         Load configuration from YAML
