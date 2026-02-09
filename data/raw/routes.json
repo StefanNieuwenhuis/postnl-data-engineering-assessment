@@ -1,0 +1,112 @@
+[
+  {
+    "route_id": "R001",
+    "origin_region": "FR-North",
+    "destination_region": "NL-South",
+    "origin_city": "Lille",
+    "destination_city": "Maastricht",
+    "distance_km": 92.4,
+    "avg_speed_kmh": 29.6,
+    "road_type": "Urban",
+    "toll_eur": 5.98
+  },
+  {
+    "route_id": "R002",
+    "origin_region": "FR-North",
+    "destination_region": "DE-West",
+    "origin_city": "Lille",
+    "destination_city": "Duisburg",
+    "distance_km": 301.1,
+    "avg_speed_kmh": 59.2,
+    "road_type": "Mixed",
+    "toll_eur": 9.45
+  },
+  {
+    "route_id": "R003",
+    "origin_region": "DE-West",
+    "destination_region": "NL-North",
+    "origin_city": "Duisburg",
+    "destination_city": "Leeuwarden",
+    "distance_km": 227.9,
+    "avg_speed_kmh": 65.1,
+    "road_type": "Mixed",
+    "toll_eur": 15.94
+  },
+  {
+    "route_id": "R004",
+    "origin_region": "DE-West",
+    "destination_region": "BE-Flanders",
+    "origin_city": "Duisburg",
+    "destination_city": "Ghent",
+    "distance_km": 291.2,
+    "avg_speed_kmh": 68.2,
+    "road_type": "Mixed",
+    "toll_eur": 12.59
+  },
+  {
+    "route_id": "R005",
+    "origin_region": "NL-Randstad",
+    "destination_region": "NL-South",
+    "origin_city": "Utrecht",
+    "destination_city": "Maastricht",
+    "distance_km": 163.4,
+    "avg_speed_kmh": 75.7,
+    "road_type": "Highway",
+    "toll_eur": 10.98
+  },
+  {
+    "route_id": "R006",
+    "origin_region": "NL-North",
+    "destination_region": "FR-North",
+    "origin_city": "Leeuwarden",
+    "destination_city": "Lille",
+    "distance_km": 581.8,
+    "avg_speed_kmh": 36.2,
+    "road_type": "Urban",
+    "toll_eur": 31.49
+  },
+  {
+    "route_id": "R007",
+    "origin_region": "NL-North",
+    "destination_region": "NL-South",
+    "origin_city": "Leeuwarden",
+    "destination_city": "Maastricht",
+    "distance_km": 554.6,
+    "avg_speed_kmh": 82.8,
+    "road_type": "Highway",
+    "toll_eur": 36.55
+  },
+  {
+    "route_id": "R008",
+    "origin_region": "BE-Flanders",
+    "destination_region": "NL-North",
+    "origin_city": "Antwerp",
+    "destination_city": "Groningen",
+    "distance_km": 284.9,
+    "avg_speed_kmh": 28.3,
+    "road_type": "Urban",
+    "toll_eur": 9.37
+  },
+  {
+    "route_id": "R009",
+    "origin_region": "NL-South",
+    "destination_region": "DE-West",
+    "origin_city": "Maastricht",
+    "destination_city": "Dusseldorf",
+    "distance_km": 233.1,
+    "avg_speed_kmh": 53.1,
+    "road_type": "Mixed",
+    "toll_eur": 8.77
+  },
+  {
+    "route_id": "R010",
+    "origin_region": "NL-South",
+    "destination_region": "DE-West",
+    "origin_city": "Maastricht",
+    "destination_city": "Dusseldorf",
+    "distance_km": 472.2,
+    "avg_speed_kmh": 36.2,
+    "road_type": "Urban",
+    "toll_eur": 20.96
+  }
+]

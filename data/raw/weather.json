@@ -1,0 +1,242 @@
+[
+  {
+    "date": "2025-09-25",
+    "region": "NL-North",
+    "condition": "Wind",
+    "temperature_c": 10.7,
+    "wind_kph": 15.1,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-25",
+    "region": "NL-South",
+    "condition": "Overcast",
+    "temperature_c": 8.0,
+    "wind_kph": 21.9,
+    "precipitation_mm": 2.4
+  },
+  {
+    "date": "2025-09-25",
+    "region": "DE-West",
+    "condition": "Overcast",
+    "temperature_c": 16.4,
+    "wind_kph": 21.6,
+    "precipitation_mm": 3.8
+  },
+  {
+    "date": "2025-09-25",
+    "region": "BE-Flanders",
+    "condition": "Wind",
+    "temperature_c": 13.5,
+    "wind_kph": 14.6,
+    "precipitation_mm": 0.4
+  },
+  {
+    "date": "2025-09-25",
+    "region": "FR-North",
+    "condition": "Fog",
+    "temperature_c": 6.8,
+    "wind_kph": 7.4,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-25",
+    "region": "NL-Randstad",
+    "condition": "Rain",
+    "temperature_c": 16.0,
+    "wind_kph": 10.8,
+    "precipitation_mm": 2.5
+  },
+  {
+    "date": "2025-09-26",
+    "region": "NL-North",
+    "condition": "Fog",
+    "temperature_c": 12.2,
+    "wind_kph": 23.9,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-26",
+    "region": "NL-South",
+    "condition": "Overcast",
+    "temperature_c": 13.0,
+    "wind_kph": 10.4,
+    "precipitation_mm": 2.6
+  },
+  {
+    "date": "2025-09-26",
+    "region": "DE-West",
+    "condition": "Clear",
+    "temperature_c": 5.4,
+    "wind_kph": 21.5,
+    "precipitation_mm": 0.8
+  },
+  {
+    "date": "2025-09-26",
+    "region": "BE-Flanders",
+    "condition": "Wind",
+    "temperature_c": 11.0,
+    "wind_kph": 6.4,
+    "precipitation_mm": 0.6
+  },
+  {
+    "date": "2025-09-26",
+    "region": "FR-North",
+    "condition": "Wind",
+    "temperature_c": 15.2,
+    "wind_kph": 18.2,
+    "precipitation_mm": 2.4
+  },
+  {
+    "date": "2025-09-26",
+    "region": "NL-Randstad",
+    "condition": "Fog",
+    "temperature_c": 12.8,
+    "wind_kph": 9.8,
+    "precipitation_mm": 0.7
+  },
+  {
+    "date": "2025-09-27",
+    "region": "NL-North",
+    "condition": "Fog",
+    "temperature_c": 20.8,
+    "wind_kph": 24.7,
+    "precipitation_mm": 0.9
+  },
+  {
+    "date": "2025-09-27",
+    "region": "NL-South",
+    "condition": "Clear",
+    "temperature_c": 21.3,
+    "wind_kph": 8.5,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-27",
+    "region": "DE-West",
+    "condition": "Rain",
+    "temperature_c": 12.1,
+    "wind_kph": 7.0,
+    "precipitation_mm": 3.8
+  },
+  {
+    "date": "2025-09-27",
+    "region": "BE-Flanders",
+    "condition": "Overcast",
+    "temperature_c": 12.9,
+    "wind_kph": 6.2,
+    "precipitation_mm": 1.8
+  },
+  {
+    "date": "2025-09-27",
+    "region": "FR-North",
+    "condition": "Wind",
+    "temperature_c": 18.2,
+    "wind_kph": 34.0,
+    "precipitation_mm": 4.0
+  },
+  {
+    "date": "2025-09-27",
+    "region": "NL-Randstad",
+    "condition": "Fog",
+    "temperature_c": 16.1,
+    "wind_kph": 10.1,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-28",
+    "region": "NL-North",
+    "condition": "Overcast",
+    "temperature_c": 9.9,
+    "wind_kph": 14.7,
+    "precipitation_mm": 2.3
+  },
+  {
+    "date": "2025-09-28",
+    "region": "NL-South",
+    "condition": "Rain",
+    "temperature_c": 13.3,
+    "wind_kph": 26.5,
+    "precipitation_mm": 3.2
+  },
+  {
+    "date": "2025-09-28",
+    "region": "DE-West",
+    "condition": "Wind",
+    "temperature_c": 8.8,
+    "wind_kph": 4.6,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-28",
+    "region": "BE-Flanders",
+    "condition": "Clear",
+    "temperature_c": 13.7,
+    "wind_kph": 32.1,
+    "precipitation_mm": 0.7
+  },
+  {
+    "date": "2025-09-28",
+    "region": "FR-North",
+    "condition": "Rain",
+    "temperature_c": 11.5,
+    "wind_kph": 8.5,
+    "precipitation_mm": 1.8
+  },
+  {
+    "date": "2025-09-28",
+    "region": "NL-Randstad",
+    "condition": "Clear",
+    "temperature_c": 10.4,
+    "wind_kph": 35.0,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-29",
+    "region": "NL-North",
+    "condition": "Wind",
+    "temperature_c": 9.5,
+    "wind_kph": 25.5,
+    "precipitation_mm": 1.0
+  },
+  {
+    "date": "2025-09-29",
+    "region": "NL-South",
+    "condition": "Overcast",
+    "temperature_c": 13.2,
+    "wind_kph": 17.7,
+    "precipitation_mm": 2.2
+  },
+  {
+    "date": "2025-09-29",
+    "region": "DE-West",
+    "condition": "Clear",
+    "temperature_c": 11.7,
+    "wind_kph": 8.2,
+    "precipitation_mm": 0.0
+  },
+  {
+    "date": "2025-09-29",
+    "region": "BE-Flanders",
+    "condition": "Clear",
+    "temperature_c": 14.9,
+    "wind_kph": 30.6,
+    "precipitation_mm": 0.7
+  },
+  {
+    "date": "2025-09-29",
+    "region": "FR-North",
+    "condition": "Rain",
+    "temperature_c": 15.4,
+    "wind_kph": 28.4,
+    "precipitation_mm": 3.3
+  },
+  {
+    "date": "2025-09-29",
+    "region": "NL-Randstad",
+    "condition": "Overcast",
+    "temperature_c": 11.9,
+    "wind_kph": 26.9,
+    "precipitation_mm": 3.5
+  }
+]

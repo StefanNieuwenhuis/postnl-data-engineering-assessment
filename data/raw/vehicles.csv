@@ -1,0 +1,9 @@
+vehicle_id,vehicle_type,fuel_type,emission_kg_per_km,capacity_kg,capacity_m3
+V001,Van,Diesel,0.217,20394,52.6
+V002,Van,Diesel,0.202,18494,58.7
+V003,Artic,Diesel,0.899,20076,14.7
+V004,EVVan,Electric,0.049,980,56.2
+V005,EVVan,Electric,0.053,1057,31.1
+V006,RigidTruck,Diesel,0.657,6835,11.3
+V007,EVVan,Electric,0.051,1131,47.4
+V008,Artic,Diesel,0.93,9992,54.4
