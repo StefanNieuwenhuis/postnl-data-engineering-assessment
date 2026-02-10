@@ -18,19 +18,40 @@ datasets:
     format: "json"
     stream: true
     bronze_table: "raw_routes"
+    silver_table: "clean_routes"
   shipments:
     source: "sources/shipments.csv"
     format: "csv"
     bronze_table: "raw_shipments"
+    silver_table: "clean_shipments"
   vehicles:
     source: "sources/vehicles.csv"
     format: "csv"
     bronze_table: "raw_vehicles"
-  weather:
-    source: "sources/weather"
-    format: "json"
-    stream: true
-    bronze_table: "raw_weather"
+    silver_table: "clean_vehicles"
+#  weather:
+#    source: "sources/weather"
+#    format: "json"
+#    stream: true
+#    bronze_table: "raw_weather"
+#    silver_table: "clean_weather"
+
+transformations:
+  silver:
+    shipments:
+      date_columns:
+        - "ship_date"
+      datetime_columns:
+        - "planned_arrival"
+        - "actual_arrival"
+      dedupe_keys:
+        - "shipment_id"
+      required_columns:
+        - "shipment_id"
+        - "route_id"
+        - "vehicle_id"
+        - "carrier_id"
+
 
 # Spark configuration
 spark:
