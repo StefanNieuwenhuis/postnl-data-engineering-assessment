@@ -9,6 +9,7 @@ from utils.spark_utils import read_dataframe, read_stream
 
 logger = logging.getLogger(__name__)
 
+
 class SilverLayerManager:
     """Handles Silver Layer Data Transformations (e.g. deduplication, casting/normalization, validation & quarantining"""
 
@@ -29,10 +30,7 @@ class SilverLayerManager:
         prefix = "norm_"
         transformations_config = self.cm.get_transformations("silver", dataset_name) or {}
 
-        cols_config = [
-            ("date_columns", F.to_date),
-            ("datetime_columns", F.to_timestamp)
-        ]
+        cols_config = [("date_columns", F.to_date), ("datetime_columns", F.to_timestamp)]
 
         for raw_key, cast_func in cols_config:
             raw_cols = transformations_config.get(raw_key) or []
@@ -41,7 +39,7 @@ class SilverLayerManager:
             for raw_col in raw_cols:
                 df = df.withColumn(
                     f"{prefix}{raw_col}",
-                    F.coalesce(*[cast_func(F.col(raw_col), fmt) for fmt in datetime_formats])
+                    F.coalesce(*[cast_func(F.col(raw_col), fmt) for fmt in datetime_formats]),
                 )
 
         return df
@@ -54,7 +52,9 @@ class SilverLayerManager:
 
         return df.withWatermark("ingestion_timestamp", "10 minutes").dropDuplicates(key_cols)
 
-    def _handle_missing_values(self, df: DataFrame, key_cols: Optional[List[str]] = None) -> DataFrame:
+    def _handle_missing_values(
+        self, df: DataFrame, key_cols: Optional[List[str]] = None
+    ) -> DataFrame:
         """
         Handles missing values in key columns
         :param df:
@@ -76,9 +76,9 @@ class SilverLayerManager:
         for dataset_name in datasets:
             data_source_path = self.cm.get_layer_path(source_layer, dataset_name)
             output_path = self.cm.get_layer_path(dest_layer, dataset_name)
-            checkpoint_path = f"{self.cm.get_bucket("silver")}/checkpoints/{dataset_name}"
+            checkpoint_path = f"{self.cm.get_bucket('silver')}/checkpoints/{dataset_name}"
 
-            transformation_cfg = self.cm.get_transformations(dest_layer, dataset_name)  or {}
+            transformation_cfg = self.cm.get_transformations(dest_layer, dataset_name) or {}
 
             dedupe_keys = transformation_cfg.get("dedupe_keys", {})
             required_cols = transformation_cfg.get("required_columns", {})
@@ -87,10 +87,7 @@ class SilverLayerManager:
                 total_count = batch_df.count()  # safe in batch mode
                 logger.info(f"Batch {batch_id} total records: {total_count}")
 
-                (batch_df.write
-                 .format(output_format)
-                 .mode("append")
-                 .save(output_path))
+                (batch_df.write.format(output_format).mode("append").save(output_path))
 
             logger.info("=" * 80)
             logger.info(f"Start transforming {dataset_name}".center(80))
@@ -100,15 +97,13 @@ class SilverLayerManager:
                 .transform(lambda df: self._deduplicate(df, dedupe_keys))
                 .transform(lambda df: self._handle_missing_values(df, required_cols))
                 .transform(lambda df: self._normalize_timestamps(df, dataset_name))
-                .writeStream
-                .foreachBatch(process_batch)
+                .writeStream.foreachBatch(process_batch)
                 .option("checkpointLocation", checkpoint_path)
                 .trigger(availableNow=True)
                 .start()
             )
             query.awaitTermination()
 
-            logger.info("="*80)
+            logger.info("=" * 80)
             logger.info(f"Finished transforming {dataset_name}".center(80))
-            logger.info("="*80)
-
+            logger.info("=" * 80)
