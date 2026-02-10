@@ -67,54 +67,6 @@ def silver_config_yaml(tmp_path) -> str:
     return str(config_path)
 
 
-@pytest.fixture
-def silver_config_single_dataset_yaml(tmp_path) -> str:
-    """
-    Config with only one dataset (routes) for faster transform_all tests.
-
-    :return: Path to the config YAML file.
-    """
-    base = tmp_path / "delta-lake"
-    base.mkdir()
-    (base / "bronze").mkdir()
-    (base / "silver").mkdir()
-
-    config = {
-        "storage": {
-            "local": {
-                "buckets": {
-                    "landing": str(base / "landing"),
-                    "bronze": str(base / "bronze"),
-                    "silver": str(base / "silver"),
-                }
-            },
-            "databricks": {"buckets": {}},
-        },
-        "datasets": {
-            "routes": {
-                "source": "sources/routes.json",
-                "format": "json",
-                "bronze_table": "raw_routes",
-                "silver_table": "clean_routes",
-            },
-        },
-        "transformations": {
-            "silver": {
-                "routes": {
-                    "dedupe_keys": ["route_id", "ingestion_timestamp"],
-                    "required_columns": ["route_id"],
-                    "date_columns": [],
-                    "datetime_columns": [],
-                },
-            },
-        },
-    }
-
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(yaml.dump(config), encoding="utf-8")
-    return str(config_path)
-
-
 class TestSilverLayerManager:
     """Unit tests for SilverLayerManager."""
 
