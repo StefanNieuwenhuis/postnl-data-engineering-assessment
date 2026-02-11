@@ -7,7 +7,7 @@ from pyspark.sql.functions import col, current_date, current_timestamp, input_fi
 from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 
 from core.configuration_manager import ConfigurationManager
-from schema_registry.schema_registry import SCHEMAS
+from schema_registry.schema_registry import CORRUPT_RECORD_COLUMN, SCHEMAS, schema_with_corrupt_record
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,23 @@ class BronzeLayerManager:
             )
             logger.info(f"Appended {dataset_name} to bronze")
 
+    def _write_quarantine(
+        self,
+        df: DataFrame,
+        dataset_name: str,
+        source_file: str,
+        run_id: str,
+    ) -> int:
+        """Write corrupt records to quarantine Delta table. Returns count written."""
+        if df.isEmpty():
+            return 0
+        quarantine_path = self.cm.get_quarantine_path(dataset_name)
+        df_with_meta = self._add_metadata(df, run_id, dataset_name, source_file=source_file)
+        count = df_with_meta.count()
+        df_with_meta.write.format("delta").mode("append").save(quarantine_path)
+        logger.warning(f"Quarantined {count:,} corrupt records for {dataset_name} to {quarantine_path}")
+        return count
+
     def _ingest_batch(
         self,
         dataset_name: str,
@@ -100,15 +117,18 @@ class BronzeLayerManager:
         run_id: str,
         data_format: str,
         schema: Optional[StructType] = None,
+        quarantine: bool = False,
     ) -> DataFrame:
         """
         Ingest data from a batch data source
         When provided, the schema is enforced. Otherwise, Spark infers the schema.
+        When quarantine=True and schema is used, malformed records are captured to quarantine.
 
         :param dataset_name: Data source name (e.g. 'shipments', 'vehicles')
         :param path: Source file path (landing path from config)
         :param data_format: Data format
         :param schema: Optional PySpark StructType
+        :param quarantine: If True, use columnNameOfCorruptRecord and write corrupt rows to quarantine
         :return: DataFrame with ingested data and bronze metadata columns.
         """
 
@@ -119,7 +139,12 @@ class BronzeLayerManager:
             reader = reader.option("header", "true")
 
         schema = schema or SCHEMAS.get(dataset_name)
+        use_corrupt_record = quarantine and schema is not None
+
         if schema is not None:
+            if use_corrupt_record:
+                schema = schema_with_corrupt_record(schema)
+                reader = reader.option("columnNameOfCorruptRecord", CORRUPT_RECORD_COLUMN)
             reader = reader.schema(schema)
             logger.info("Schema applied from registry")
         else:
@@ -127,6 +152,12 @@ class BronzeLayerManager:
             logger.info("Schema inferred by Spark")
 
         df = reader.load(path, format=data_format)
+
+        if use_corrupt_record and CORRUPT_RECORD_COLUMN in df.columns:
+            corrupt_df = df.filter(col(CORRUPT_RECORD_COLUMN).isNotNull())
+            valid_df = df.filter(col(CORRUPT_RECORD_COLUMN).isNull()).drop(CORRUPT_RECORD_COLUMN)
+            self._write_quarantine(corrupt_df, dataset_name, path, run_id)
+            df = valid_df
 
         # Add metadata
         df = self._add_metadata(df, run_id, dataset_name, source_file=path)
@@ -227,61 +258,10 @@ class BronzeLayerManager:
 
             if is_stream:
                 logger.info(f"Start streaming ingest {name} from path: {path}")
-                df = self._ingest_stream(name, path, run_id, format)
+                self._ingest_stream(name, path, run_id, format)
             else:
+                quarantine = config.get("quarantine") is True
                 logger.info(f"Start batch ingesting {name} from path: {path}")
 
-                df = self._ingest_batch(name, path, run_id, format)
+                self._ingest_batch(name, path, run_id, format, quarantine=quarantine)
 
-    def read(
-        self,
-        dataset_name: str,
-        options: Optional[Dict[str, str]] = None,
-        data_format: str = "json",
-        is_stream: bool = True,
-    ) -> DataFrame:
-        """
-        Read a bronze layer table by dataset name
-
-        :param dataset_name: Dataset key in config (e.g. `routes`, `shipments`)
-        :param options: Additional options dictionary
-        :param data_format: source format (e.g. `json`, `csv`, `delta`)
-        :param is_stream: True if read as stream
-        :return: DataFrame containing the bronze layer table data
-        """
-        path = self.cm.get_layer_path("bronze", dataset_name)
-        reader = self.spark.readStream if is_stream else self.spark.read
-
-        df = reader.format(data_format)
-
-        # if provided, set options
-        if options is not None:
-            for key, val in options.items():
-                df = df.option(key, val)
-
-        return df.load(path)
-
-    def write(self, df: DataFrame, dataset_name: str) -> None:
-        """
-        Write DataFrame to the bronze data layer
-
-        Appends to the table at the path from config, and, if enabled, registers in Unity Catalog
-
-        :param df: PySpark DataFrame
-        :param dataset_name: Dataset key in config (e.g. 'routes', 'shipments').
-        """
-
-        output_path = self.cm.get_layer_path("bronze", dataset_name)
-
-        count = df.count()
-        logger.info(f"Writing to Bronze: {output_path} ({count:,} records)")
-
-        writer = (
-            df.write.format("delta")
-            .mode("append")
-            .option("mergeSchema", "true")
-            .partitionBy("ingestion_date")
-        )
-
-        writer.save(output_path)
-        logger.info(f"Wrote {count:,} records to {dataset_name}")

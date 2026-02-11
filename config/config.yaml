@@ -16,6 +16,7 @@ storage:
 # Per-dataset: path within each layer bucket.
 # source = path in landing (file or directory). When stream: true, source must be a directory.
 # stream: true = Spark Structured Streaming (file stream).
+# quarantine: true = capture malformed records to quarantine path (batch only).
 datasets:
   routes:
     source: "sources/routes"
@@ -26,11 +27,13 @@ datasets:
   shipments:
     source: "sources/shipments.csv"
     format: "csv"
+    quarantine: true
     bronze_table: "raw_shipments"
     silver_table: "clean_shipments"
   vehicles:
     source: "sources/vehicles.csv"
     format: "csv"
+    quarantine: true
     bronze_table: "raw_vehicles"
     silver_table: "clean_vehicles"
   weather:
