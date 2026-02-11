@@ -29,12 +29,12 @@ datasets:
     format: "csv"
     bronze_table: "raw_vehicles"
     silver_table: "clean_vehicles"
-#  weather:
-#    source: "sources/weather"
-#    format: "json"
-#    stream: true
-#    bronze_table: "raw_weather"
-#    silver_table: "clean_weather"
+  weather:
+    source: "sources/weather"
+    format: "json"
+    stream: true
+    bronze_table: "raw_weather"
+    silver_table: "clean_weather"
 
 transformations:
   silver:
