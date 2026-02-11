@@ -54,7 +54,7 @@ class GoldLayerManager:
             .when(F.col("delay_minutes") < 0, "EARLY")
             .when(
                 F.col("delay_minutes").isNull(), "NULL"
-            )  # TODO: Handle missing values for NULL ts
+            )
             .otherwise("ON_TIME"),
         )
 
@@ -115,7 +115,7 @@ class GoldLayerManager:
             "delay_minutes", "emission_kg", "efficiency_score",
         ]
 
-        output_path = "s3a://gold/route_performance"
+        output_path = f"{self.cm.get_bucket('gold')}/{self.cm.get('gold', 'route_performance', default='route_performance')}"
 
         df = (
             shipments_df

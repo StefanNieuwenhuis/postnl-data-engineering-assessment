@@ -1,3 +1,7 @@
+# Gold layer output paths
+gold:
+  route_performance: "route_performance"
+
 # Per-layer buckets: landing, bronze, silver, gold (paths are bucket root).
 storage:
   local:
@@ -57,9 +61,6 @@ transformations:
     vehicles:
       dedupe_keys:
         - "vehicle_id"
-    weather:
-      dedupe_keys:
-        ""
 
 
 # Spark configuration
