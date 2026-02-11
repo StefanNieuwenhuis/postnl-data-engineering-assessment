@@ -2,7 +2,8 @@ import logging
 from typing import List, Optional
 
 import pyspark.sql.functions as F
-from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql import DataFrame, SparkSession
+from delta.tables import DeltaTable
 
 from core.configuration_manager import ConfigurationManager
 from utils.spark_utils import read_dataframe, read_stream
@@ -65,6 +66,32 @@ class SilverLayerManager:
 
         return df.dropna(subset=key_cols)
 
+    def _merge_into_silver(
+        self,
+        batch_df: DataFrame,
+        output_path: str,
+        dataset_name: str,
+        merge_keys: List[str],
+    ) -> None:
+        """
+        Merge batch into silver Delta table for idempotency.
+        Uses business keys (dedupe_keys) so re-runs do not create duplicates.
+        """
+        if batch_df.isEmpty():
+            return
+        if DeltaTable.isDeltaTable(self.spark, output_path):
+            merge_condition = " AND ".join(
+                f"target.{k} = source.{k}" for k in merge_keys
+            )
+            delta_table = DeltaTable.forPath(self.spark, output_path)
+            delta_table.alias("target").merge(
+                batch_df.alias("source"), merge_condition
+            ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
+            logger.info(f"Merged {dataset_name} into silver (keys: {merge_keys})")
+        else:
+            batch_df.write.format("delta").mode("append").save(output_path)
+            logger.info(f"Created silver {dataset_name} (initial load)")
+
     def transform_all(self) -> None:
         source_layer = "bronze"
         dest_layer = "silver"
@@ -80,25 +107,50 @@ class SilverLayerManager:
 
             transformation_cfg = self.cm.get_transformations(dest_layer, dataset_name) or {}
 
-            dedupe_keys = transformation_cfg.get("dedupe_keys", {})
-            required_cols = transformation_cfg.get("required_columns", {})
+            dedupe_keys = transformation_cfg.get("dedupe_keys") or []
+            required_cols = transformation_cfg.get("required_columns") or []
+
+            # Silver merge keys: business keys only (exclude source_file for idempotency)
+            merge_keys = [
+                k for k in (self.cm.get_merge_keys(dataset_name) or dedupe_keys)
+                if k != "source_file"
+            ]
 
             logger.info(f"Deduplication keys: {dedupe_keys}")
             logger.info(f"Required column keys: {required_cols}")
+            logger.info(f"Merge keys: {merge_keys}")
 
             logger.info("=" * 80)
             logger.info(f"Start transforming {dataset_name}".center(80))
             logger.info("=" * 80)
-            query = (
+
+            stream_df = (
                 read_stream(self.spark, data_source_path)
                 .transform(lambda df: self._deduplicate(df, dedupe_keys))
                 .transform(lambda df: self._handle_missing_values(df, required_cols))
                 .transform(lambda df: self._normalize_timestamps(df, dataset_name))
-                .writeStream
-                .option("checkpointLocation", checkpoint_path)
-                .trigger(availableNow=True)
-                .start(output_path, format=output_format)
             )
+
+            if merge_keys:
+                query = (
+                    stream_df.writeStream
+                    .foreachBatch(
+                        lambda batch_df, batch_id: self._merge_into_silver(
+                            batch_df, output_path, dataset_name, merge_keys
+                        )
+                    )
+                    .option("checkpointLocation", checkpoint_path)
+                    .trigger(availableNow=True)
+                    .start()
+                )
+            else:
+                query = (
+                    stream_df.writeStream
+                    .format(output_format)
+                    .option("checkpointLocation", checkpoint_path)
+                    .trigger(availableNow=True)
+                    .start(output_path)
+                )
             query.awaitTermination()
 
             logger.info("=" * 80)
