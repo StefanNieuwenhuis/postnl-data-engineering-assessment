@@ -73,17 +73,11 @@ def _make_delay_df(spark_session, planned_ts: str, actual_ts: Optional[str]):
             ),
         ]
     )
-    df = df.withColumn(
-        "norm_planned_arrival", F.to_timestamp(F.col("norm_planned_arrival"))
-    )
+    df = df.withColumn("norm_planned_arrival", F.to_timestamp(F.col("norm_planned_arrival")))
     if actual_ts is not None:
-        df = df.withColumn(
-            "norm_actual_arrival", F.to_timestamp(F.col("norm_actual_arrival"))
-        )
+        df = df.withColumn("norm_actual_arrival", F.to_timestamp(F.col("norm_actual_arrival")))
     else:
-        df = df.withColumn(
-            "norm_actual_arrival", F.lit(None).cast("timestamp")
-        )
+        df = df.withColumn("norm_actual_arrival", F.lit(None).cast("timestamp"))
     return df
 
 
@@ -177,7 +171,6 @@ class TestGoldLayerManager:
             assert row.arrival_status == "ON_TIME"
             assert row.delay_minutes == 0
 
-
     class TestComputeEmissionKg:
         """Tests for _compute_emission_kg."""
 
@@ -251,4 +244,3 @@ class TestGoldLayerManager:
             row = result.select("efficiency_score").first()
 
             assert row.efficiency_score == 100.0
-

@@ -2,10 +2,11 @@ import logging
 from typing import List, Optional
 
 import pyspark.sql.functions as F
-from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql import DataFrame, SparkSession
 
 from core.configuration_manager import ConfigurationManager
-from utils.spark_utils import read_dataframe, read_stream
+from utils.logging_utils import log_header
+from utils.spark_utils import read_stream
 
 logger = logging.getLogger(__name__)
 
@@ -83,24 +84,17 @@ class SilverLayerManager:
             dedupe_keys = transformation_cfg.get("dedupe_keys", {})
             required_cols = transformation_cfg.get("required_columns", {})
 
-            logger.info(f"Deduplication keys: {dedupe_keys}")
-            logger.info(f"Required column keys: {required_cols}")
+            log_header(f"Start transforming {dataset_name}")
 
-            logger.info("=" * 80)
-            logger.info(f"Start transforming {dataset_name}".center(80))
-            logger.info("=" * 80)
             query = (
                 read_stream(self.spark, data_source_path)
                 .transform(lambda df: self._deduplicate(df, dedupe_keys))
                 .transform(lambda df: self._handle_missing_values(df, required_cols))
                 .transform(lambda df: self._normalize_timestamps(df, dataset_name))
-                .writeStream
-                .option("checkpointLocation", checkpoint_path)
+                .writeStream.option("checkpointLocation", checkpoint_path)
                 .trigger(availableNow=True)
                 .start(output_path, format=output_format)
             )
             query.awaitTermination()
 
-            logger.info("=" * 80)
-            logger.info(f"Finished transforming {dataset_name}".center(80))
-            logger.info("=" * 80)
+            log_header(f"Finished transforming {dataset_name}")

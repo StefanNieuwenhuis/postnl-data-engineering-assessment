@@ -4,6 +4,7 @@ from delta import configure_spark_with_delta_pip
 from pyspark.sql import SparkSession
 
 from core.configuration_manager import ConfigurationManager
+from utils.logging_utils import log_footer, log_header
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,12 @@ class SparkSessionManager:
             extra_packages=extra_packages,
         ).getOrCreate()
 
-        logger.info(f"Created SparkSession with Master: {master} for {environment} environment")
+        log_header(f"Created SparkSession with Master: {master} for {environment} environment")
+        logger.info(f"Master: {master}")
+        logger.info(f"Environment: {environment}")
         logger.info(f"Spark version: {spark.version}")
         logger.info(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
+        log_footer()
 
         return spark
 
@@ -68,4 +72,4 @@ class SparkSessionManager:
         """
         if self.cm.get_environment() != "databricks":
             self.spark.stop()
-            logger.info("SparkSession stopped")
+            log_header("SparkSession stopped and its resources released")

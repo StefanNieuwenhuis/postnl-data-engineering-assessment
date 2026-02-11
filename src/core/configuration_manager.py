@@ -4,6 +4,8 @@ from typing import Any, Dict
 
 import yaml
 
+from utils.logging_utils import log_header
+
 logger = logging.getLogger(__name__)
 
 # Mapping of {[layer name] -> dataset configuration key} for path within a layer's bucket
@@ -28,7 +30,7 @@ class ConfigurationManager:
         self.config = self._load_config()
         self.environment = self._detect_environment()
 
-        logger.info(f"Configuration loaded successfully")
+        log_header("Configuration loaded successfully")
 
     def _load_config(self) -> Dict[str, Any]:
         """

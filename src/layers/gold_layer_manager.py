@@ -1,7 +1,7 @@
 import logging
 
 import pyspark.sql.functions as F
-from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql import DataFrame, SparkSession
 
 from core.configuration_manager import ConfigurationManager
 
@@ -22,8 +22,11 @@ class GoldLayerManager:
         """
 
         metadata_cols = [
-            "ingestion_timestamp", "ingestion_date",
-            "run_id", "source_system", "source_file"
+            "ingestion_timestamp",
+            "ingestion_date",
+            "run_id",
+            "source_system",
+            "source_file",
         ]
         existing_metadata = [col for col in metadata_cols if col in df.columns]
         if existing_metadata:
@@ -52,9 +55,7 @@ class GoldLayerManager:
             "arrival_status",
             F.when(F.col("delay_minutes") > 0, "LATE")
             .when(F.col("delay_minutes") < 0, "EARLY")
-            .when(
-                F.col("delay_minutes").isNull(), "NULL"
-            )
+            .when(F.col("delay_minutes").isNull(), "NULL")
             .otherwise("ON_TIME"),
         )
 
@@ -76,24 +77,19 @@ class GoldLayerManager:
         :return: DataFrame with column `efficiency_score` containing the computed time efficiency
         """
 
-        return df.withColumn(
-    "expected_minutes",
-            F.col("distance_km") / F.col("avg_speed_kmh") * 60
-        ).withColumn("delay_pct",
-            (F.col("delay_minutes") / F.col("expected_minutes"))
-        ).withColumn("efficiency_score",
-             F.least(
-                F.lit(100),
-                F.greatest(
-                    F.lit(0),
-                    F.round(100 * (1 - F.col("delay_pct")), 2)
-                )
-             )
+        return (
+            df.withColumn("expected_minutes", F.col("distance_km") / F.col("avg_speed_kmh") * 60)
+            .withColumn("delay_pct", (F.col("delay_minutes") / F.col("expected_minutes")))
+            .withColumn(
+                "efficiency_score",
+                F.least(
+                    F.lit(100), F.greatest(F.lit(0), F.round(100 * (1 - F.col("delay_pct")), 2))
+                ),
+            )
         )
 
     def compute_kpis(self) -> None:
         source_layer = "silver"
-        dest_layer = "gold"
         output_format = "delta"
 
         shipments_source_path = self.cm.get_layer_path(source_layer, "shipments")
@@ -106,29 +102,40 @@ class GoldLayerManager:
         routes_df = self.spark.read.format(output_format).load(routes_source_path)
 
         gold_cols = [
-            "shipment_id", "route_id", "vehicle_id", "carrier_id",
-            "origin_region", "destination_region", "origin_city", "destination_city",
-            "vehicle_type", "fuel_type",
-            "ship_date", "planned_arrival", "actual_arrival",
-            "distance_km", "avg_speed_kmh", "toll_eur",
-            "weight_kg", "volume_m3",
-            "delay_minutes", "emission_kg", "efficiency_score",
+            "shipment_id",
+            "route_id",
+            "vehicle_id",
+            "carrier_id",
+            "origin_region",
+            "destination_region",
+            "origin_city",
+            "destination_city",
+            "vehicle_type",
+            "fuel_type",
+            "ship_date",
+            "planned_arrival",
+            "actual_arrival",
+            "distance_km",
+            "avg_speed_kmh",
+            "toll_eur",
+            "weight_kg",
+            "volume_m3",
+            "delay_minutes",
+            "emission_kg",
+            "efficiency_score",
         ]
 
         output_path = f"{self.cm.get_bucket('gold')}/{self.cm.get('gold', 'route_performance', default='route_performance')}"
 
-        df = (
-            shipments_df
-            .join(vehicles_df, on="vehicle_id", how="left")
+        (
+            shipments_df.join(vehicles_df, on="vehicle_id", how="left")
             .join(routes_df, on="route_id", how="left")
             .transform(lambda df: self._compute_emission_kg(df))
             .transform(lambda df: self._compute_delay_minutes(df))
             .transform(lambda df: self._compute_time_efficiency(df))
-            # Write to Golden Delta table
             .select(gold_cols)
-            .write
-            .format("delta")
+            .write.format("delta")
             .mode("overwrite")
             .partitionBy(["ship_date", "origin_region"])
             .save(output_path)
-         )
+        )

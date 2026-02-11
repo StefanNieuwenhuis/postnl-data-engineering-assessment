@@ -1,12 +1,13 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, current_date, current_timestamp, input_file_name, lit
-from pyspark.sql.types import DoubleType, StringType, StructField, StructType
+from pyspark.sql.functions import current_date, current_timestamp, input_file_name, lit
+from pyspark.sql.types import StructType
 
 from core.configuration_manager import ConfigurationManager
 from schema_registry.schema_registry import SCHEMAS
+from utils.logging_utils import log_footer, log_header
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,10 @@ class BronzeLayerManager:
         # For streaming DataFrames, input_file_name() may not work reliably, so pass source_file
         if source_file is not None:
             result = result.withColumn("source_file", lit(source_file))
+            logger.info(f"Source File provided and added")
         else:
             result = result.withColumn("source_file", input_file_name())
+            logger.info(f"Source File not provided; inferred input filename")
 
         return result
 
@@ -71,7 +74,7 @@ class BronzeLayerManager:
         :return: DataFrame with ingested data and bronze metadata columns.
         """
 
-        logger.info(f"Batch ingesting {dataset_name} from: {path}")
+        log_header(f"Batch ingesting {dataset_name} from: {path}")
         reader = self.spark.read.option("header", "true")
 
         if schema is not None:
@@ -87,8 +90,6 @@ class BronzeLayerManager:
         # Add metadata
         df = self._add_metadata(df, run_id, dataset_name, source_file=path)
 
-        count = df.count()
-
         # Write to Bronze layer
         output_path = self.cm.get_layer_path("bronze", dataset_name)
 
@@ -100,7 +101,7 @@ class BronzeLayerManager:
             .save(output_path)
         )
 
-        logger.info(f"Ingestion complete. Ingested {count:,} {dataset_name} records")
+        logger.info(f"Ingestion complete. Ingested {df.count():,} {dataset_name} records")
         return df
 
     def _ingest_stream(
@@ -121,7 +122,7 @@ class BronzeLayerManager:
         :param run_id: The current pipeline run ID for metadata
         :param data_format: Data format
         """
-        logger.info(f"Streaming ingest {dataset_name} from directory: {path_dir}")
+        log_header(f"Streaming ingest {dataset_name} from directory: {path_dir}")
 
         # For streaming JSON, a schema has to be inferred first
         if data_format == "json":
@@ -133,10 +134,9 @@ class BronzeLayerManager:
 
             logger.info(f"Using predefined schema for {dataset_name}")
 
-            stream_df = (self.spark.readStream
-                         .schema(schema)
-                         .option("multiline", "true")
-                         .json(path_dir))
+            stream_df = (
+                self.spark.readStream.schema(schema).option("multiline", "true").json(path_dir)
+            )
         else:
             # For other formats, use load() with format
             stream_df = self.spark.readStream.load(path_dir, format=data_format)
@@ -159,6 +159,7 @@ class BronzeLayerManager:
         query.awaitTermination()
 
         logger.info(f"Stream ingestion completed for {dataset_name}")
+        log_footer()
 
     def ingest_all(self, run_id: str) -> None:
         """
@@ -168,7 +169,7 @@ class BronzeLayerManager:
         """
 
         landing_bucket = self.cm.get_bucket("landing")
-        logger.info(f"Start ingesting all configured datasets from {landing_bucket}")
+        log_header(f"Start ingesting all configured datasets from {landing_bucket}")
 
         datasets = self.cm.get_datasets()
 
@@ -176,65 +177,11 @@ class BronzeLayerManager:
             path = self.cm.get_layer_path("landing", name)
             config = config or {}
             is_stream = config.get("stream") is True
-            format = config.get("format")
+            data_format = config.get("data_format")
 
             if is_stream:
                 logger.info(f"Start streaming ingest {name} from path: {path}")
-                df = self._ingest_stream(name, path, run_id, format)
+                self._ingest_stream(name, path, run_id, data_format)
             else:
                 logger.info(f"Start batch ingesting {name} from path: {path}")
-
-                df = self._ingest_batch(name, path, run_id, format)
-
-    def read(
-        self,
-        dataset_name: str,
-        options: Optional[Dict[str, str]] = None,
-        data_format: str = "json",
-        is_stream: bool = True,
-    ) -> DataFrame:
-        """
-        Read a bronze layer table by dataset name
-
-        :param dataset_name: Dataset key in config (e.g. `routes`, `shipments`)
-        :param options: Additional options dictionary
-        :param data_format: source format (e.g. `json`, `csv`, `delta`)
-        :param is_stream: True if read as stream
-        :return: DataFrame containing the bronze layer table data
-        """
-        path = self.cm.get_layer_path("bronze", dataset_name)
-        reader = self.spark.readStream if is_stream else self.spark.read
-
-        df = reader.format(data_format)
-
-        # if provided, set options
-        if options is not None:
-            for key, val in options.items():
-                df = df.option(key, val)
-
-        return df.load(path)
-
-    def write(self, df: DataFrame, dataset_name: str) -> None:
-        """
-        Write DataFrame to the bronze data layer
-
-        Appends to the table at the path from config, and, if enabled, registers in Unity Catalog
-
-        :param df: PySpark DataFrame
-        :param dataset_name: Dataset key in config (e.g. 'routes', 'shipments').
-        """
-
-        output_path = self.cm.get_layer_path("bronze", dataset_name)
-
-        count = df.count()
-        logger.info(f"Writing to Bronze: {output_path} ({count:,} records)")
-
-        writer = (
-            df.write.format("delta")
-            .mode("append")
-            .option("mergeSchema", "true")
-            .partitionBy("ingestion_date")
-        )
-
-        writer.save(output_path)
-        logger.info(f"Wrote {count:,} records to {dataset_name}")
+                self._ingest_batch(name, path, run_id, data_format)
