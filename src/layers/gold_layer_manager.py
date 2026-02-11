@@ -142,10 +142,12 @@ class GoldLayerManager:
             .transform(lambda df: self._compute_delay_minutes(df))
             .transform(lambda df: self._compute_time_efficiency(df))
             # Write to Golden Delta table
+            # partitionOverwriteMode=dynamic: only overwrite partitions present in data (incremental)
             .select(gold_cols)
             .write
             .format("delta")
             .mode("overwrite")
+            .option("partitionOverwriteMode", "dynamic")
             .partitionBy(["ship_date", "origin_region"])
             .save(output_path)
          )

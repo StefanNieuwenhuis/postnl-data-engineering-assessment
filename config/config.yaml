@@ -69,12 +69,19 @@ transformations:
         - "route_id"
         - "vehicle_id"
         - "carrier_id"
+        - "ship_date"
+        - "planned_arrival"
+        - "actual_arrival"
     routes:
       dedupe_keys:
         - "route_id"
+      required_columns:
+        - "distance_km"
     vehicles:
       dedupe_keys:
         - "vehicle_id"
+      required_columns:
+        - "emission_kg_per_km"
     weather:
       dedupe_keys:
         - "date"

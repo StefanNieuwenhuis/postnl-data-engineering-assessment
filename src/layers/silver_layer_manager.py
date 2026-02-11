@@ -66,34 +66,6 @@ class SilverLayerManager:
 
         return df.dropna(subset=key_cols)
 
-    def _merge_into_silver(
-        self,
-        batch_df: DataFrame,
-        output_path: str,
-        dataset_name: str,
-        merge_keys: List[str],
-    ) -> None:
-        """
-        Merge batch into silver Delta table for idempotency.
-        Uses business keys (dedupe_keys) so re-runs do not create duplicates.
-        """
-        if batch_df.isEmpty():
-            return
-        if DeltaTable.isDeltaTable(self.spark, output_path):
-            # Deduplicate: Delta MERGE requires at most one source row per target row.
-            batch_deduped = batch_df.dropDuplicates(merge_keys)
-            merge_condition = " AND ".join(
-                f"target.{k} = source.{k}" for k in merge_keys
-            )
-            delta_table = DeltaTable.forPath(self.spark, output_path)
-            delta_table.alias("target").merge(
-                batch_deduped.alias("source"), merge_condition
-            ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
-            logger.info(f"Merged {dataset_name} into silver (keys: {merge_keys})")
-        else:
-            batch_df.write.format("delta").mode("append").save(output_path)
-            logger.info(f"Created silver {dataset_name} (initial load)")
-
     def _upsert_with_merge(self,
                            df: DataFrame,
                            output_path: str,
