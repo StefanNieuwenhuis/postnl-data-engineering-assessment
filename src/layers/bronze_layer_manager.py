@@ -56,7 +56,7 @@ class BronzeLayerManager:
 
         return result
 
-    def _write_bronze_with_merge(
+    def _upsert_with_merge(
         self,
         df: DataFrame,
         output_path: str,
@@ -77,9 +77,11 @@ class BronzeLayerManager:
                 f"target.{k} = source.{k}" for k in merge_keys
             )
             delta_table = DeltaTable.forPath(self.spark, output_path)
-            delta_table.alias("target").merge(
-                df.alias("source"), merge_condition
-            ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
+
+            (delta_table.alias("target")
+             .merge(df.alias("source"), merge_condition)
+             .whenNotMatchedInsertAll()
+             .execute())
             logger.info(f"Merged {dataset_name} into bronze (keys: {merge_keys})")
         else:
             (
@@ -135,7 +137,7 @@ class BronzeLayerManager:
         output_path = self.cm.get_layer_path("bronze", dataset_name)
         merge_keys = self.cm.get_merge_keys(dataset_name)
 
-        self._write_bronze_with_merge(df, output_path, dataset_name, merge_keys)
+        self._upsert_with_merge(df, output_path, dataset_name, merge_keys)
 
         logger.info(f"Ingestion complete. Ingested {count:,} {dataset_name} records")
         return df
@@ -189,28 +191,18 @@ class BronzeLayerManager:
             """Merge each micro-batch into bronze for idempotency."""
             if batch_df.isEmpty():
                 return
-            self._write_bronze_with_merge(
+            self._upsert_with_merge(
                 batch_df, output_path, dataset_name, merge_keys
             )
 
-        # Use foreachBatch with MERGE when merge_keys configured; else append
-        if merge_keys:
-            query = (
-                stream_with_meta.writeStream
-                .foreachBatch(merge_batch)
-                .trigger(availableNow=True)
-                .option("checkpointLocation", checkpoint_path)
-                .start()
-            )
-        else:
-            query = (
-                stream_with_meta.writeStream.format("delta")
-                .outputMode("append")
-                .trigger(availableNow=True)
-                .option("checkpointLocation", checkpoint_path)
-                .partitionBy("ingestion_date")
-                .start(output_path)
-            )
+        query = (
+            stream_with_meta.writeStream
+            .foreachBatch(merge_batch)
+            .trigger(availableNow=True)
+            .option("checkpointLocation", checkpoint_path)
+            .start()
+        )
+
         query.awaitTermination()
 
         logger.info(f"Stream ingestion completed for {dataset_name}")

@@ -44,10 +44,15 @@ datasets:
 # Bronze: include source_file for batch (dedupe by file+key); stream uses business key only.
 # Silver: business keys only (same as dedupe logic but for MERGE).
 merge_keys:
-  shipments: [source_file, shipment_id]
-  vehicles: [source_file, vehicle_id]
-  routes: [route_id]
-  weather: [date, region]
+  shipments:
+    - "shipment_id"
+  vehicles:
+    - "vehicle_id"
+  routes:
+    - "route_id"
+  weather:
+    - "date"
+    - "region"
 
 transformations:
   silver:

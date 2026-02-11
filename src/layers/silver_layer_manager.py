@@ -80,22 +80,51 @@ class SilverLayerManager:
         if batch_df.isEmpty():
             return
         if DeltaTable.isDeltaTable(self.spark, output_path):
+            # Deduplicate: Delta MERGE requires at most one source row per target row.
+            batch_deduped = batch_df.dropDuplicates(merge_keys)
             merge_condition = " AND ".join(
                 f"target.{k} = source.{k}" for k in merge_keys
             )
             delta_table = DeltaTable.forPath(self.spark, output_path)
             delta_table.alias("target").merge(
-                batch_df.alias("source"), merge_condition
+                batch_deduped.alias("source"), merge_condition
             ).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
             logger.info(f"Merged {dataset_name} into silver (keys: {merge_keys})")
         else:
             batch_df.write.format("delta").mode("append").save(output_path)
             logger.info(f"Created silver {dataset_name} (initial load)")
 
+    def _upsert_with_merge(self,
+                           df: DataFrame,
+                           output_path: str,
+                           dataset_name: str,
+                           merge_keys: Optional[List[str]] = None
+                           ) -> None:
+        if merge_keys and DeltaTable.isDeltaTable(self.spark, output_path):
+            merge_condition = " AND ".join(
+                f"target.{k} = source.{k}" for k in merge_keys
+            )
+            delta_table = DeltaTable.forPath(self.spark, output_path)
+
+            (delta_table.alias("target")
+             .merge(df.alias("source"), merge_condition)
+             .whenNotMatchedInsertAll()
+             .execute())
+            logger.info(f"Merged {dataset_name} into silver (keys: {merge_keys})")
+        else:
+            (
+                df.write.format("delta")
+                .mode("append")
+                .option("mergeSchema", "true")
+                .partitionBy("ingestion_date")
+                .save(output_path)
+            )
+            logger.info(f"Appended {dataset_name} to bronze")
+
+
     def transform_all(self) -> None:
         source_layer = "bronze"
         dest_layer = "silver"
-        output_format = "delta"
 
         datasets = self.cm.get_datasets()
         logger.info(datasets)
@@ -110,11 +139,7 @@ class SilverLayerManager:
             dedupe_keys = transformation_cfg.get("dedupe_keys") or []
             required_cols = transformation_cfg.get("required_columns") or []
 
-            # Silver merge keys: business keys only (exclude source_file for idempotency)
-            merge_keys = [
-                k for k in (self.cm.get_merge_keys(dataset_name) or dedupe_keys)
-                if k != "source_file"
-            ]
+            merge_keys = self.cm.get_merge_keys(dataset_name)
 
             logger.info(f"Deduplication keys: {dedupe_keys}")
             logger.info(f"Required column keys: {required_cols}")
@@ -131,26 +156,22 @@ class SilverLayerManager:
                 .transform(lambda df: self._normalize_timestamps(df, dataset_name))
             )
 
-            if merge_keys:
-                query = (
-                    stream_df.writeStream
-                    .foreachBatch(
-                        lambda batch_df, batch_id: self._merge_into_silver(
-                            batch_df, output_path, dataset_name, merge_keys
-                        )
-                    )
-                    .option("checkpointLocation", checkpoint_path)
-                    .trigger(availableNow=True)
-                    .start()
-                )
-            else:
-                query = (
-                    stream_df.writeStream
-                    .format(output_format)
-                    .option("checkpointLocation", checkpoint_path)
-                    .trigger(availableNow=True)
-                    .start(output_path)
-                )
+            def merge_batch(batch_df: DataFrame, batch_id: int) -> None:
+                """Merge each micro-batch into silver for idempotency"""
+                logger.info(f"Process micro batch #{batch_id}")
+
+                if batch_df.isEmpty():
+                    return
+                self._upsert_with_merge(batch_df, output_path, dataset_name, merge_keys)
+
+            query = (
+                stream_df.writeStream
+                .foreachBatch(merge_batch)
+                .option("checkpointLocation", checkpoint_path)
+                .trigger(availableNow=True)
+                .start()
+            )
+
             query.awaitTermination()
 
             logger.info("=" * 80)
