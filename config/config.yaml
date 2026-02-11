@@ -83,6 +83,8 @@ transformations:
       required_columns:
         - "emission_kg_per_km"
     weather:
+      date_columns:
+        - "date"
       dedupe_keys:
         - "date"
         - "region"

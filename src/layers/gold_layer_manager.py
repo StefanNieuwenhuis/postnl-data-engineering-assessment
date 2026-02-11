@@ -122,32 +122,39 @@ class GoldLayerManager:
         routes_source_path = self.cm.get_layer_path(source_layer, "routes")
         routes_df = self.spark.read.format(output_format).load(routes_source_path)
 
+        weather_source_path = self.cm.get_layer_path(source_layer, "weather")
+        weather_df = self.spark.read.format(output_format).load(weather_source_path)
+
         gold_cols = [
             "shipment_id", "route_id", "vehicle_id", "carrier_id",
             "origin_region", "destination_region", "origin_city", "destination_city",
             "vehicle_type", "fuel_type",
-            "ship_date", "planned_arrival", "actual_arrival",
+            "norm_ship_date", "norm_planned_arrival", "norm_actual_arrival",
             "distance_km", "avg_speed_kmh", "toll_eur",
             "weight_kg", "volume_m3",
             "delay_minutes", "arrival_status", "emission_kg", "efficiency_score",
+            "condition", "temperature_c", "wind_kph", "precipitation_mm"
         ]
 
-        output_path = f"{self.cm.get_bucket('gold')}/{self.cm.get('gold', 'route_performance', default='route_performance')}"
+        output_path = f"{self.cm.get_bucket(dest_layer)}/{self.cm.get(dest_layer, "route_performance", default="route_performance")}"
 
-        df = (
-            shipments_df
-            .join(vehicles_df, on="vehicle_id", how="left")
-            .join(routes_df, on="route_id", how="left")
+        (
+            shipments_df.alias("target")
+            .join(vehicles_df.alias("vehicles_source"), on="vehicle_id", how="left")
+            .join(routes_df.alias("routes_source"), on="route_id", how="left")
+            .join(weather_df.alias("weather_source"),
+                  on=((F.col("weather_source.norm_date") == F.col("target.norm_ship_date")) & (F.col("weather_source.region") == F.col("routes_source.origin_region"))
+                  )
+                  , how="left")
             .transform(lambda df: self._compute_emission_kg(df))
             .transform(lambda df: self._compute_delay_minutes(df))
             .transform(lambda df: self._compute_time_efficiency(df))
-            # Write to Golden Delta table
-            # partitionOverwriteMode=dynamic: only overwrite partitions present in data (incremental)
             .select(gold_cols)
             .write
             .format("delta")
             .mode("overwrite")
+            # partitionOverwriteMode=dynamic: only overwrite partitions present in data (incremental)
             .option("partitionOverwriteMode", "dynamic")
-            .partitionBy(["ship_date", "origin_region"])
+            .partitionBy(["norm_ship_date", "origin_region"])
             .save(output_path)
          )
