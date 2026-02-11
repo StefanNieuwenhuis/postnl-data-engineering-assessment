@@ -70,25 +70,42 @@ class GoldLayerManager:
 
     def _compute_time_efficiency(self, df: DataFrame) -> DataFrame:
         """
-        Compute a shipment's time efficiency (trip duration over distance)
+        Compute a shipment's time efficiency (trip duration over distance).
+        Edge cases: avg_speed_kmh=0 or NULL, distance_km=0 → expected_minutes NULL;
+        expected_minutes=0 or NULL → efficiency_score NULL to avoid division by zero.
 
         :param df: Input DataFrame
-        :return: DataFrame with column `efficiency_score` containing the computed time efficiency
+        :return: DataFrame with columns `expected_minutes`, `delay_pct`, `efficiency_score`
         """
-
-        return df.withColumn(
-    "expected_minutes",
-            F.col("distance_km") / F.col("avg_speed_kmh") * 60
-        ).withColumn("delay_pct",
-            (F.col("delay_minutes") / F.col("expected_minutes"))
-        ).withColumn("efficiency_score",
-             F.least(
-                F.lit(100),
-                F.greatest(
-                    F.lit(0),
-                    F.round(100 * (1 - F.col("delay_pct")), 2)
-                )
-             )
+        return (
+            df.withColumn(
+                "expected_minutes",
+                F.when(
+                    (F.col("avg_speed_kmh").isNotNull())
+                    & (F.col("avg_speed_kmh") > 0)
+                    & (F.col("distance_km").isNotNull())
+                    & (F.col("distance_km") >= 0),
+                    F.col("distance_km") / F.col("avg_speed_kmh") * 60,
+                ),
+            )
+            .withColumn(
+                "delay_pct",
+                F.when(
+                    (F.col("expected_minutes").isNotNull())
+                    & (F.col("expected_minutes") > 0),
+                    F.col("delay_minutes") / F.col("expected_minutes"),
+                ),
+            )
+            .withColumn(
+                "efficiency_score",
+                F.when(
+                    F.col("delay_pct").isNotNull(),
+                    F.least(
+                        F.lit(100),
+                        F.greatest(F.lit(0), F.round(100 * (1 - F.col("delay_pct")), 2)),
+                    ),
+                ),
+            )
         )
 
     def compute_kpis(self) -> None:
@@ -112,7 +129,7 @@ class GoldLayerManager:
             "ship_date", "planned_arrival", "actual_arrival",
             "distance_km", "avg_speed_kmh", "toll_eur",
             "weight_kg", "volume_m3",
-            "delay_minutes", "emission_kg", "efficiency_score",
+            "delay_minutes", "arrival_status", "emission_kg", "efficiency_score",
         ]
 
         output_path = f"{self.cm.get_bucket('gold')}/{self.cm.get('gold', 'route_performance', default='route_performance')}"
