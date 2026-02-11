@@ -28,7 +28,10 @@ class BronzeLayerManager:
         self, df: DataFrame, run_id: str, source: str, source_file: Optional[str] = None
     ) -> DataFrame:
         """
-        Add bronze layer metadata columns to improve traceability and partitioning
+        Add bronze layer metadata columns for traceability and partitioning.
+
+        Raw source columns are preserved; metadata enables replay, incremental logic,
+        and partitioning by ingestion_date.
 
         :param df: DataFrame to add metadata columns
         :param run_id: The current pipeline run ID
@@ -72,16 +75,19 @@ class BronzeLayerManager:
         """
 
         logger.info(f"Batch ingesting {dataset_name} from: {path}")
-        reader = self.spark.read.option("header", "true")
+        reader = self.spark.read
 
+        if data_format == "csv":
+            reader = reader.option("header", "true")
+
+        schema = schema or SCHEMAS.get(dataset_name)
         if schema is not None:
             reader = reader.schema(schema)
-            logger.info("Custom schema applied")
+            logger.info("Schema applied from registry")
         else:
             reader = reader.option("inferSchema", "true")
             logger.info("Schema inferred by Spark")
 
-        # Create DataFrame from file location
         df = reader.load(path, format=data_format)
 
         # Add metadata
