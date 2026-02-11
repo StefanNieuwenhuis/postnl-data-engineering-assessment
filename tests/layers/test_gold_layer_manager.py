@@ -31,6 +31,7 @@ def gold_config_yaml(tmp_path) -> str:
             },
             "databricks": {"buckets": {}},
         },
+        "gold": {"route_performance": "route_performance"},
         "datasets": {
             "shipments": {
                 "source": "sources/shipments.csv",
