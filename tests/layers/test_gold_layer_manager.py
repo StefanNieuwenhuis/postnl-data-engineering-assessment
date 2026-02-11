@@ -63,7 +63,7 @@ def gold_config_yaml(tmp_path) -> str:
 
 
 def _make_delay_df(spark_session, planned_ts: str, actual_ts: Optional[str]):
-    """Create DataFrame with norm_planned_arrival and norm_actual_arrival (gold layer expects these)."""
+    """Create DataFrame with norm_planned_arrival and norm_actual_arrival"""
     df = spark_session.createDataFrame(
         [
             Row(
@@ -128,7 +128,7 @@ class TestGoldLayerManager:
             assert result.columns == ["a", "b"]
 
     class TestComputeDelayMinutes:
-        """Tests for _compute_delay_minutes (expects norm_planned_arrival, norm_actual_arrival)."""
+        """Tests for _compute_delay_minutes"""
 
         def test_adds_delay_minutes_and_arrival_status_columns(
             self, spark_session, gold_config_yaml
@@ -157,10 +157,10 @@ class TestGoldLayerManager:
         def test_early_arrival_status(self, spark_session, gold_config_yaml) -> None:
             """arrival_status is EARLY when norm_actual_arrival < norm_planned_arrival."""
             cm = ConfigurationManager(gold_config_yaml)
-            manager = GoldLayerManager(spark_session, cm)
+            gold_manager = GoldLayerManager(spark_session, cm)
             df = _make_delay_df(spark_session, "2025-09-25 11:00:00", "2025-09-25 10:00:00")
 
-            result = manager._compute_delay_minutes(df)
+            result = gold_manager._compute_delay_minutes(df)
             row = result.select("arrival_status").first()
 
             assert row.arrival_status == "EARLY"
