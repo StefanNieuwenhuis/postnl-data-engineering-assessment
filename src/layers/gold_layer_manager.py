@@ -1,16 +1,34 @@
 import logging
 
-from pyspark.sql import SparkSession, DataFrame
 import pyspark.sql.functions as F
+from pyspark.sql import DataFrame, SparkSession, Window
 
 from core.configuration_manager import ConfigurationManager
 
 logger = logging.getLogger(__name__)
 
+
 class GoldLayerManager:
     def __init__(self, spark: SparkSession, cm: ConfigurationManager):
         self.spark = spark
         self.cm = cm
+
+    def _drop_metadata(self, df: DataFrame) -> DataFrame:
+        """
+        Drop all metadata columns from DataFrame
+
+        :param df: Input DataFrame
+        :return: DataFrame without metadata columns
+        """
+
+        metadata_cols = [
+            "ingestion_timestamp", "ingestion_date",
+            "run_id", "source_system", "source_file"
+        ]
+        existing_metadata = [col for col in metadata_cols if col in df.columns]
+        if existing_metadata:
+            logger.debug(f"Dropping metadata columns: {existing_metadata}")
+        return df.drop(*existing_metadata)
 
     def _compute_delay_minutes(self, df: DataFrame) -> DataFrame:
         """
@@ -20,20 +38,57 @@ class GoldLayerManager:
         :param df: Input DataFrame
         :return: DataFrame with added columns `delay_minutes` & `arrival_status`
         """
-        return (
-            df
-            .withColumn("delay_minutes",
-                 F.round(
-                     (F.col("actual_arrival").cast("long") - F.col("planned_arrival").cast("long")) / 60,
-                     2
-                 )
-            )
-            .withColumn("arrival_status",
-                F.when(F.col("delay_minutes") > 0, "LATE")
-                        .when(F.col("delay_minutes") < 0, "EARLY")
-                        .when(F.col("delay_minutes").isNull(), "NULL") # TODO: Handle missing values for NULL ts
-                        .otherwise("ON_TIME")
-            )
+        return df.withColumn(
+            "delay_minutes",
+            F.round(
+                (
+                    F.col("norm_actual_arrival").cast("long")
+                    - F.col("norm_planned_arrival").cast("long")
+                )
+                / 60,
+                2,
+            ),
+        ).withColumn(
+            "arrival_status",
+            F.when(F.col("delay_minutes") > 0, "LATE")
+            .when(F.col("delay_minutes") < 0, "EARLY")
+            .when(
+                F.col("delay_minutes").isNull(), "NULL"
+            )  # TODO: Handle missing values for NULL ts
+            .otherwise("ON_TIME"),
+        )
+
+    def _compute_emission_kg(self, df: DataFrame) -> DataFrame:
+        """
+        Compute the emission per kg for a shipment
+
+        :param df: Input DataFrame
+        :return: DataFrame with column `emission_kg` containing the computed emission per kg
+        """
+
+        return df.withColumn("emission_kg", (F.col("distance_km") * F.col("emission_kg_per_km")))
+
+    def _compute_time_efficiency(self, df: DataFrame) -> DataFrame:
+        """
+        Compute a shipment's time efficiency (trip duration over distance)
+
+        :param df: Input DataFrame
+        :return: DataFrame with column `efficiency_score` containing the computed time efficiency
+        """
+
+        return df.withColumn(
+    "expected_minutes",
+            F.col("distance_km") / F.col("avg_speed_kmh") * 60
+        ).withColumn("delay_pct",
+            (F.col("delay_minutes") / F.col("expected_minutes"))
+        ).withColumn("efficiency_score",
+             F.least(
+                F.lit(100),
+                F.greatest(
+                    F.lit(0),
+                    F.round(100 * (1 - F.col("delay_pct")), 2)
+                )
+             )
         )
 
     def compute_kpis(self) -> None:
@@ -47,12 +102,33 @@ class GoldLayerManager:
         vehicles_source_path = self.cm.get_layer_path(source_layer, "vehicles")
         vehicles_df = self.spark.read.format(output_format).load(vehicles_source_path)
 
-        logger.info(f"shipments columns: {shipments_df.columns}")
-        logger.info(f"vehicles columns: {vehicles_df.columns}")
+        routes_source_path = self.cm.get_layer_path(source_layer, "routes")
+        routes_df = self.spark.read.format(output_format).load(routes_source_path)
 
-        query = (
-            self.spark.read.format(output_format).load(shipments_source_path)
+        gold_cols = [
+            "shipment_id", "route_id", "vehicle_id", "carrier_id",
+            "origin_region", "destination_region", "origin_city", "destination_city",
+            "vehicle_type", "fuel_type",
+            "ship_date", "planned_arrival", "actual_arrival",
+            "distance_km", "avg_speed_kmh", "toll_eur",
+            "weight_kg", "volume_m3",
+            "delay_minutes", "emission_kg", "efficiency_score",
+        ]
+
+        output_path = "s3a://gold/route_performance"
+
+        df = (
+            shipments_df
+            .join(vehicles_df, on="vehicle_id", how="left")
+            .join(routes_df, on="route_id", how="left")
+            .transform(lambda df: self._compute_emission_kg(df))
             .transform(lambda df: self._compute_delay_minutes(df))
-        )
-
-        query.select(["shipment_id", "planned_arrival", "actual_arrival", "delay_minutes", "arrival_status"]).show()
+            .transform(lambda df: self._compute_time_efficiency(df))
+            # Write to Golden Delta table
+            .select(gold_cols)
+            .write
+            .format("delta")
+            .mode("overwrite")
+            .partitionBy(["ship_date", "origin_region"])
+            .save(output_path)
+         )

@@ -133,8 +133,10 @@ class BronzeLayerManager:
 
             logger.info(f"Using predefined schema for {dataset_name}")
 
-            # No multiLine: expect NDJSON (one JSON object per line) for streaming
-            stream_df = self.spark.readStream.schema(schema).json(path_dir)
+            stream_df = (self.spark.readStream
+                         .schema(schema)
+                         .option("multiline", "true")
+                         .json(path_dir))
         else:
             # For other formats, use load() with format
             stream_df = self.spark.readStream.load(path_dir, format=data_format)

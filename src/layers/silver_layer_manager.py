@@ -83,11 +83,14 @@ class SilverLayerManager:
             dedupe_keys = transformation_cfg.get("dedupe_keys", {})
             required_cols = transformation_cfg.get("required_columns", {})
 
+            logger.info(f"Deduplication keys: {dedupe_keys}")
+            logger.info(f"Required column keys: {required_cols}")
+
             def process_batch(batch_df: DataFrame, batch_id: int) -> None:
                 total_count = batch_df.count()  # safe in batch mode
                 logger.info(f"Batch {batch_id} total records: {total_count}")
 
-                (batch_df.write.format(output_format).mode("append").save(output_path))
+                (batch_df.write.format(output_format).mode("overwrite").save(output_path))
 
             logger.info("=" * 80)
             logger.info(f"Start transforming {dataset_name}".center(80))
@@ -97,10 +100,10 @@ class SilverLayerManager:
                 .transform(lambda df: self._deduplicate(df, dedupe_keys))
                 .transform(lambda df: self._handle_missing_values(df, required_cols))
                 .transform(lambda df: self._normalize_timestamps(df, dataset_name))
-                .writeStream.foreachBatch(process_batch)
+                .writeStream
                 .option("checkpointLocation", checkpoint_path)
                 .trigger(availableNow=True)
-                .start()
+                .start(output_path, format=output_format)
             )
             query.awaitTermination()
 
