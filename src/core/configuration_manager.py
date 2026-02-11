@@ -127,3 +127,14 @@ class ConfigurationManager:
         """
 
         return self.get("datasets")
+
+    def get_transformations(self, layer: str, dataset_name: str) -> Dict[str, Any]:
+        """
+        Get transformation configuration for a dataset in a layer
+
+        :param layer: Data Layer name
+        :param dataset_name: Dataset name
+        :return: Dict of transformations
+        """
+
+        return self.get("transformations", layer, dataset_name)
