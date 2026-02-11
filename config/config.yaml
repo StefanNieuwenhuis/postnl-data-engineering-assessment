@@ -40,6 +40,20 @@ datasets:
     bronze_table: "raw_weather"
     silver_table: "clean_weather"
 
+# Merge keys for idempotency: Delta MERGE uses these to upsert (no duplicates on re-run).
+# Bronze: include source_file for batch (dedupe by file+key); stream uses business key only.
+# Silver: business keys only (same as dedupe logic but for MERGE).
+merge_keys:
+  shipments:
+    - "shipment_id"
+  vehicles:
+    - "vehicle_id"
+  routes:
+    - "route_id"
+  weather:
+    - "date"
+    - "region"
+
 transformations:
   silver:
     shipments:
@@ -55,12 +69,25 @@ transformations:
         - "route_id"
         - "vehicle_id"
         - "carrier_id"
+        - "ship_date"
+        - "planned_arrival"
+        - "actual_arrival"
     routes:
       dedupe_keys:
         - "route_id"
+      required_columns:
+        - "distance_km"
     vehicles:
       dedupe_keys:
         - "vehicle_id"
+      required_columns:
+        - "emission_kg_per_km"
+    weather:
+      date_columns:
+        - "date"
+      dedupe_keys:
+        - "date"
+        - "region"
 
 
 # Spark configuration

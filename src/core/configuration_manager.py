@@ -138,3 +138,12 @@ class ConfigurationManager:
         """
 
         return self.get("transformations", layer, dataset_name)
+
+    def get_merge_keys(self, dataset_name: str):
+        """
+        Get merge keys for Delta MERGE (idempotency).
+
+        :param dataset_name: Dataset name
+        :return: List of column names for merge condition, or None if not configured
+        """
+        return self.get("merge_keys", dataset_name)

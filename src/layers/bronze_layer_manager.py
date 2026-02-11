@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, List, Optional
 
+from delta.tables import DeltaTable
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, current_date, current_timestamp, input_file_name, lit
 from pyspark.sql.types import DoubleType, StringType, StructField, StructType
@@ -55,6 +56,43 @@ class BronzeLayerManager:
 
         return result
 
+    def _upsert_with_merge(
+        self,
+        df: DataFrame,
+        output_path: str,
+        dataset_name: str,
+        merge_keys: Optional[List[str]] = None,
+    ) -> None:
+        """
+        Write to bronze using Delta MERGE when merge_keys are configured and table exists.
+        Ensures idempotency: re-ingesting the same data does not create duplicates.
+
+        :param df: DataFrame with bronze metadata
+        :param output_path: Delta table path
+        :param dataset_name: Dataset name for logging
+        :param merge_keys: Column names for merge condition (e.g. [source_file, shipment_id])
+        """
+        if merge_keys and DeltaTable.isDeltaTable(self.spark, output_path):
+            merge_condition = " AND ".join(
+                f"target.{k} = source.{k}" for k in merge_keys
+            )
+            delta_table = DeltaTable.forPath(self.spark, output_path)
+
+            (delta_table.alias("target")
+             .merge(df.alias("source"), merge_condition)
+             .whenNotMatchedInsertAll()
+             .execute())
+            logger.info(f"Merged {dataset_name} into bronze (keys: {merge_keys})")
+        else:
+            (
+                df.write.format("delta")
+                .mode("append")
+                .option("mergeSchema", "true")
+                .partitionBy("ingestion_date")
+                .save(output_path)
+            )
+            logger.info(f"Appended {dataset_name} to bronze")
+
     def _ingest_batch(
         self,
         dataset_name: str,
@@ -95,16 +133,11 @@ class BronzeLayerManager:
 
         count = df.count()
 
-        # Write to Bronze layer
+        # Write to Bronze layer (MERGE for idempotency when merge_keys configured)
         output_path = self.cm.get_layer_path("bronze", dataset_name)
+        merge_keys = self.cm.get_merge_keys(dataset_name)
 
-        (
-            df.write.format("delta")
-            .mode("append")
-            .option("mergeSchema", "true")
-            .partitionBy("ingestion_date")
-            .save(output_path)
-        )
+        self._upsert_with_merge(df, output_path, dataset_name, merge_keys)
 
         logger.info(f"Ingestion complete. Ingested {count:,} {dataset_name} records")
         return df
@@ -152,16 +185,24 @@ class BronzeLayerManager:
 
         checkpoint_path = f"{self.cm.get_bucket('bronze')}/checkpoints/{dataset_name}"
         output_path = self.cm.get_layer_path("bronze", dataset_name)
+        merge_keys = self.cm.get_merge_keys(dataset_name)
 
-        # Simple streaming sink: append to Delta, process all available files, then stop
+        def merge_batch(batch_df: DataFrame, batch_id: int) -> None:
+            """Merge each micro-batch into bronze for idempotency."""
+            if batch_df.isEmpty():
+                return
+            self._upsert_with_merge(
+                batch_df, output_path, dataset_name, merge_keys
+            )
+
         query = (
-            stream_with_meta.writeStream.format("delta")
-            .outputMode("append")
+            stream_with_meta.writeStream
+            .foreachBatch(merge_batch)
             .trigger(availableNow=True)
             .option("checkpointLocation", checkpoint_path)
-            .partitionBy("ingestion_date")
-            .start(output_path)
+            .start()
         )
+
         query.awaitTermination()
 
         logger.info(f"Stream ingestion completed for {dataset_name}")
