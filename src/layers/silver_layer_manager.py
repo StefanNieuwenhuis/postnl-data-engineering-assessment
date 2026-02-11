@@ -86,12 +86,6 @@ class SilverLayerManager:
             logger.info(f"Deduplication keys: {dedupe_keys}")
             logger.info(f"Required column keys: {required_cols}")
 
-            def process_batch(batch_df: DataFrame, batch_id: int) -> None:
-                total_count = batch_df.count()  # safe in batch mode
-                logger.info(f"Batch {batch_id} total records: {total_count}")
-
-                (batch_df.write.format(output_format).mode("overwrite").save(output_path))
-
             logger.info("=" * 80)
             logger.info(f"Start transforming {dataset_name}".center(80))
             logger.info("=" * 80)
