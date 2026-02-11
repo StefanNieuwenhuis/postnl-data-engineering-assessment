@@ -1,3 +1,7 @@
+# Gold layer output paths
+gold:
+  route_performance: "route_performance"
+
 # Per-layer buckets: landing, bronze, silver, gold (paths are bucket root).
 storage:
   local:
@@ -51,6 +55,12 @@ transformations:
         - "route_id"
         - "vehicle_id"
         - "carrier_id"
+    routes:
+      dedupe_keys:
+        - "route_id"
+    vehicles:
+      dedupe_keys:
+        - "vehicle_id"
 
 
 # Spark configuration
@@ -68,6 +78,8 @@ spark:
       spark.hadoop.fs.s3a.connection.ssl.enabled: "false"
       spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
       spark.hadoop.fs.s3a.credentials.provider: "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+      spark.hadoop.fs.s3a.threads.max: 64
+      spark.hadoop.fs.s3a.connection.maximum: 64
       spark.databricks.delta.retentionDurationCheck.enabled: "false"
       spark.sql.streaming.schemaInference: "true"
       spark.sql.adaptive.enabled: "true"
