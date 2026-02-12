@@ -4,7 +4,7 @@ from pyspark import Row
 from pyspark.sql import functions as F
 
 from core.configuration_manager import ConfigurationManager
-from layers.silver_layer_manager import SilverLayerManager
+from layers.silver_layer_manager import SilverLayerManager, QUARANTINE_REASON_COLUMN
 
 
 @pytest.fixture
@@ -119,11 +119,11 @@ class TestSilverLayerManager:
                 ]
             )
 
-            result_none = manager._deduplicate(df, key_cols=None)
-            result_empty = manager._deduplicate(df, key_cols=[])
+            kept_none, dropped_none = manager._deduplicate(df, key_cols=None)
+            kept_empty, dropped_empty = manager._deduplicate(df, key_cols=[])
 
-            assert result_none.count() == 2
-            assert result_empty.count() == 2
+            assert kept_none.count() == 2
+            assert kept_empty.count() == 2
 
     class TestHandleMissingValues:
         """Tests for _handle_missing_values."""
@@ -135,9 +135,9 @@ class TestSilverLayerManager:
 
             df = spark_session.createDataFrame([Row(a=1, b=None), Row(a=2, b="y")])
 
-            result = manager._handle_missing_values(df, key_cols=None)
+            valid_df, invalid_df = manager._handle_missing_values(df, key_cols=None)
 
-            assert result.count() == 2
+            assert valid_df.count() == 2
 
         def test_drops_rows_with_nulls_in_key_columns(
             self, spark_session, silver_config_yaml
@@ -154,9 +154,9 @@ class TestSilverLayerManager:
                 ]
             )
 
-            result = manager._handle_missing_values(df, key_cols=["shipment_id", "route_id"])
+            valid_df, invalid_df = manager._handle_missing_values(df, key_cols=["shipment_id", "route_id"])
 
-            assert result.count() == 2
-            rows = result.collect()
+            assert valid_df.count() == 2
+            rows = valid_df.collect()
             ids = [r.shipment_id for r in rows]
             assert "S2" not in ids
