@@ -60,6 +60,7 @@ merge_keys:
 transformations:
   silver:
     shipments:
+      quarantine: true
       date_columns:
         - "ship_date"
       datetime_columns:
@@ -81,6 +82,7 @@ transformations:
       required_columns:
         - "distance_km"
     vehicles:
+      quarantine: true
       dedupe_keys:
         - "vehicle_id"
       required_columns:
@@ -91,6 +93,7 @@ transformations:
       dedupe_keys:
         - "date"
         - "region"
+
 
 
 # Spark configuration
