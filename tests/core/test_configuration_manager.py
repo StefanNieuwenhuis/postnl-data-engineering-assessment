@@ -145,6 +145,7 @@ class TestConfigurationManager:
                         "buckets": {
                             "landing": "s3a://landing",
                             "bronze": "s3a://bronze",
+                            "silver": "s3a://silver",
                         }
                     },
                     "databricks": {"buckets": {}},
@@ -155,6 +156,5 @@ class TestConfigurationManager:
             config_path.write_text(yaml.dump(config), encoding="utf-8")
             cm = ConfigurationManager(str(config_path))
 
-            path = cm.get_quarantine_path("shipments")
-
-            assert path == "s3a://bronze/_quarantine/shipments"
+            assert cm.get_quarantine_path("shipments") == "s3a://bronze/_quarantine/shipments"
+            assert cm.get_quarantine_path("shipments", layer="silver") == "s3a://silver/_quarantine/shipments"
