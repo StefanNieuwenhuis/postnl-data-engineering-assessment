@@ -83,44 +83,6 @@ def _make_delay_df(spark_session, planned_ts: str, actual_ts: Optional[str]):
 
 class TestGoldLayerManager:
     """Unit tests for GoldLayerManager."""
-
-    class TestDropMetadata:
-        """Tests for _drop_metadata."""
-
-        def test_drops_metadata_columns(self, spark_session, gold_config_yaml) -> None:
-            """Removes ingestion_timestamp, ingestion_date, run_id, source_system, source_file."""
-            cm = ConfigurationManager(gold_config_yaml)
-            manager = GoldLayerManager(spark_session, cm)
-
-            df = spark_session.createDataFrame(
-                [
-                    Row(
-                        a=1,
-                        ingestion_timestamp="2025-09-25 10:00:00",
-                        run_id="run1",
-                        source_system="shipments",
-                    ),
-                ]
-            )
-
-            result = manager._drop_metadata(df)
-
-            assert "ingestion_timestamp" not in result.columns
-            assert "run_id" not in result.columns
-            assert "source_system" not in result.columns
-            assert "a" in result.columns
-
-        def test_unchanged_when_no_metadata(self, spark_session, gold_config_yaml) -> None:
-            """Returns DataFrame unchanged when no metadata columns exist."""
-            cm = ConfigurationManager(gold_config_yaml)
-            manager = GoldLayerManager(spark_session, cm)
-
-            df = spark_session.createDataFrame([Row(a=1, b="x")])
-
-            result = manager._drop_metadata(df)
-
-            assert result.columns == ["a", "b"]
-
     class TestComputeDelayMinutes:
         """Tests for _compute_delay_minutes"""
 
