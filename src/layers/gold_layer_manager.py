@@ -13,26 +13,6 @@ class GoldLayerManager:
         self.spark = spark
         self.cm = cm
 
-    def _drop_metadata(self, df: DataFrame) -> DataFrame:
-        """
-        Drop all metadata columns from DataFrame
-
-        :param df: Input DataFrame
-        :return: DataFrame without metadata columns
-        """
-
-        metadata_cols = [
-            "ingestion_timestamp",
-            "ingestion_date",
-            "run_id",
-            "source_system",
-            "source_file",
-        ]
-        existing_metadata = [col for col in metadata_cols if col in df.columns]
-        if existing_metadata:
-            logger.debug(f"Dropping metadata columns: {existing_metadata}")
-        return df.drop(*existing_metadata)
-
     def _compute_delay_minutes(self, df: DataFrame) -> DataFrame:
         """
         Compute the delay in minutes
