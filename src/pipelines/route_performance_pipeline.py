@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from pyspark.sql import SparkSession
@@ -7,6 +8,8 @@ from layers.bronze_layer_manager import BronzeLayerManager
 from layers.gold_layer_manager import GoldLayerManager
 from layers.silver_layer_manager import SilverLayerManager
 
+
+logger = logging.getLogger(__name__)
 
 class RoutePerformancePipeline:
     """
@@ -27,6 +30,9 @@ class RoutePerformancePipeline:
         self.run_id = self._generate_run_id()
 
     def run(self) -> None:
+        logger.info("=" * 80)
+        logger.info("Start Route performance pipeline".center(80))
+        logger.info("=" * 80)
 
         bronze_manager = BronzeLayerManager(self.spark, self.cm)
         silver_manager = SilverLayerManager(self.spark, self.cm)
@@ -35,3 +41,7 @@ class RoutePerformancePipeline:
         bronze_manager.ingest_all(self.run_id)
         silver_manager.transform_all()
         gold_manager.compute_kpis()
+
+        logger.info("=" * 80)
+        logger.info("Finished Route performance pipeline".center(80))
+        logger.info("=" * 80)

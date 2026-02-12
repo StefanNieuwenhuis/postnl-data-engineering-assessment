@@ -136,3 +136,25 @@ class TestConfigurationManager:
             with pytest.raises(KeyError) as exc_info:
                 cm.get_layer_path("invalid_layer", "routes")
             assert "invalid_layer" in str(exc_info.value)
+
+        def test_get_quarantine_path(self, valid_config_yaml, tmp_path) -> None:
+            """get_quarantine_path returns bronze bucket + _quarantine + dataset name."""
+            config = {
+                "storage": {
+                    "local": {
+                        "buckets": {
+                            "landing": "s3a://landing",
+                            "bronze": "s3a://bronze",
+                            "silver": "s3a://silver",
+                        }
+                    },
+                    "databricks": {"buckets": {}},
+                },
+                "datasets": {},
+            }
+            config_path = tmp_path / "config.yaml"
+            config_path.write_text(yaml.dump(config), encoding="utf-8")
+            cm = ConfigurationManager(str(config_path))
+
+            assert cm.get_quarantine_path("shipments") == "s3a://bronze/_quarantine/shipments"
+            assert cm.get_quarantine_path("shipments", layer="silver") == "s3a://silver/_quarantine/shipments"

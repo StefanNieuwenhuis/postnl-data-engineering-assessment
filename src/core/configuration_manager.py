@@ -147,3 +147,14 @@ class ConfigurationManager:
         :return: List of column names for merge condition, or None if not configured
         """
         return self.get("merge_keys", dataset_name)
+
+    def get_quarantine_path(self, dataset_name: str, layer: str = "bronze") -> str:
+        """
+        Get quarantine path for corrupt/validation-failed records.
+
+        :param dataset_name: Dataset name
+        :param layer: Layer bucket
+        :return: Full path for quarantine Delta table
+        """
+        bucket = self.get_bucket(layer)
+        return f"{bucket}/_quarantine/{dataset_name}"

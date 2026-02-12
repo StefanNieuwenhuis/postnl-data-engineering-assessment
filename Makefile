@@ -1,4 +1,4 @@
-.PHONY: help format lint check test clean install
+.PHONY: help format lint check test clean install run
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  make test       - Run pytest tests"
 	@echo "  make clean      - Clean Python cache files"
 	@echo "  make install    - Install dependencies with uv"
+	@echo "  make run        - Run the data pipeline (main.py)"
 
 # Source directories
 SRC_DIR := src
@@ -63,6 +64,11 @@ install:
 	@echo "Installing dependencies with uv..."
 	uv sync
 	@echo "Installation complete!"
+
+# Run the data pipeline
+run:
+	@echo "Running pipeline..."
+	PYTHONPATH=$(SRC_DIR) uv run python main.py
 
 # Run format, lint, and test
 all: format lint test
