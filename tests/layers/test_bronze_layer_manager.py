@@ -3,9 +3,12 @@ import shutil
 import pytest
 import yaml
 from pyspark import Row
+from pyspark.sql.types import StructType, StructField, StringType
 
 from core.configuration_manager import ConfigurationManager
 from layers.bronze_layer_manager import BronzeLayerManager
+from utils.quarantine_utils import QuarantineUtils
+from utils.spark_utils import SparkUtils
 
 
 @pytest.fixture
@@ -109,13 +112,11 @@ class TestConfigurationManager:
         def test_add_metadata_columns(self, spark_session, bronze_config_yaml) -> None:
             """It should add metadata to a DataFrame successfully"""
 
-            cm = ConfigurationManager(bronze_config_yaml)
-            manager = BronzeLayerManager(spark_session, cm)
             df = spark_session.createDataFrame([Row(a=1, b="x")])
             run_id = "20260208_120000"
             source = "test_source"
 
-            result = manager._add_metadata(df, run_id, source)
+            result = SparkUtils.add_metadata(df, run_id, source)
 
             columns = result.columns
 
@@ -127,14 +128,12 @@ class TestConfigurationManager:
 
         def test_row_preservation(self, spark_session, bronze_config_yaml) -> None:
             """_add_metadata should not change row count"""
-            cm = ConfigurationManager(bronze_config_yaml)
-            manager = BronzeLayerManager(spark_session, cm)
             df = spark_session.createDataFrame([Row(a=1, b="x"), Row(a=2, b="y")])
             original_row_length = df.count()
             run_id = "20260208_120000"
             source = "test_source"
 
-            result = manager._add_metadata(df, run_id, source)
+            result = SparkUtils.add_metadata(df, run_id, source)
 
             assert result.count() == original_row_length
 
@@ -143,13 +142,12 @@ class TestConfigurationManager:
         ) -> None:
             """run_id and source_system columns should have the given literal values"""
 
-            cm = ConfigurationManager(bronze_config_yaml)
-            manager = BronzeLayerManager(spark_session, cm)
+
             df = spark_session.createDataFrame([Row(a=1, b="x")])
             run_id = "20260208_120000"
             source = "test_source"
 
-            result = manager._add_metadata(df, run_id, source)
+            result = SparkUtils.add_metadata(df, run_id, source)
             row = result.select("run_id", "source_system").first()
 
             assert row.run_id == run_id
@@ -204,8 +202,7 @@ class TestConfigurationManager:
         def test_write_quarantine_empty_returns_zero(
             self, tmp_path, spark_session, bronze_config_yaml
         ) -> None:
-            """_write_quarantine with empty DataFrame should return 0 and not create files."""
-            from pyspark.sql.types import StringType, StructField, StructType
+            """merge_upsert with empty DataFrame should not create files."""
 
             cm = ConfigurationManager(bronze_config_yaml)
             manager = BronzeLayerManager(spark_session, cm)
@@ -213,41 +210,38 @@ class TestConfigurationManager:
             schema = StructType([StructField("_corrupt_record", StringType(), nullable=True)])
             empty_df = spark_session.createDataFrame([], schema)
 
-            count = manager._write_quarantine(
-                empty_df, "shipments", "/path/to/file.csv", "run_001"
-            )
+            quarantine_path = cm.get_quarantine_path("shipments")
+            QuarantineUtils.merge_upsert(spark_session, empty_df, quarantine_path, "shipments")
 
-            assert count == 0
-            quarantine_path = tmp_path / "delta-lake" / "bronze" / "_quarantine" / "shipments"
-            assert not quarantine_path.exists()
+            quarantine_path_local = tmp_path / "delta-lake" / "bronze" / "_quarantine" / "shipments"
+            assert not quarantine_path_local.exists()
 
         def test_write_quarantine_writes_to_path(
             self, tmp_path, spark_session, bronze_config_yaml
         ) -> None:
-            """_write_quarantine should write corrupt records to quarantine Delta table with metadata."""
-            from pyspark import Row
-            from pyspark.sql.types import StringType, StructField, StructType
+            """merge_upsert should write corrupt records to quarantine Delta table with metadata."""
 
             cm = ConfigurationManager(bronze_config_yaml)
-            manager = BronzeLayerManager(spark_session, cm)
+            quarantine_path = cm.get_quarantine_path("shipments")
 
             schema = StructType([StructField("_corrupt_record", StringType(), nullable=True)])
             corrupt_df = spark_session.createDataFrame(
                 [Row(_corrupt_record="bad,row,data")], schema
             )
-
-            count = manager._write_quarantine(
-                corrupt_df, "shipments", "/path/to/file.csv", "run_001"
+            corrupt_df = SparkUtils.add_metadata(
+                corrupt_df, "run_001", "shipments", source_file="/path/to/file.csv"
             )
 
-            assert count == 1
-            quarantine_path = tmp_path / "delta-lake" / "bronze" / "_quarantine" / "shipments"
-            assert quarantine_path.exists()
+            QuarantineUtils.merge_upsert(spark_session, corrupt_df, quarantine_path, "shipments")
 
-            # Verify quarantine table has data with metadata
-            df = spark_session.read.format("delta").load(str(quarantine_path))
+            quarantine_path_local = tmp_path / "delta-lake" / "bronze" / "_quarantine" / "shipments"
+            assert quarantine_path_local.exists()
+
+            # Verify quarantine table has data with metadata and merge key
+            df = spark_session.read.format("delta").load(str(quarantine_path_local))
             assert df.count() == 1
             assert "_corrupt_record" in df.columns
+            assert "quarantine_row_hash" in df.columns
             assert "run_id" in df.columns
             assert "source_system" in df.columns
             assert "source_file" in df.columns
@@ -285,3 +279,33 @@ class TestConfigurationManager:
                 quarantine_df = spark_session.read.format("delta").load(str(quarantine_path))
                 assert quarantine_df.count() >= 1
                 assert bronze_count + quarantine_df.count() == 3
+
+        def test_write_quarantine_merge_idempotency(
+            self, tmp_path, spark_session, bronze_config_yaml
+        ) -> None:
+            """Re-writing the same corrupt record should not create duplicates."""
+
+            cm = ConfigurationManager(bronze_config_yaml)
+            quarantine_path = cm.get_quarantine_path("shipments")
+
+            schema = StructType([StructField("_corrupt_record", StringType(), nullable=True)])
+            corrupt_df = spark_session.createDataFrame(
+                [Row(_corrupt_record="bad,row,data")], schema
+            )
+            corrupt_df = SparkUtils.add_metadata(
+                corrupt_df, "run_001", "shipments", source_file="/path/to/file.csv"
+            )
+
+            QuarantineUtils.merge_upsert(spark_session, corrupt_df, quarantine_path, "shipments")
+
+            corrupt_df2 = spark_session.createDataFrame(
+                [Row(_corrupt_record="bad,row,data")], schema
+            )
+            corrupt_df2 = SparkUtils.add_metadata(
+                corrupt_df2, "run_002", "shipments", source_file="/path/to/file.csv"
+            )
+            QuarantineUtils.merge_upsert(spark_session, corrupt_df2, quarantine_path, "shipments")
+
+            quarantine_path_local = tmp_path / "delta-lake" / "bronze" / "_quarantine" / "shipments"
+            quarantine_df = spark_session.read.format("delta").load(str(quarantine_path_local))
+            assert quarantine_df.count() == 1
