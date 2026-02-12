@@ -1,6 +1,10 @@
 # postnl-data-engineering-assessment
 This is my PostNL data engineering assessment where I design and implement a scalable data pipeline that processes transport and delivery data to improve efficiency, emissions insight, and data quality.
 
+## Architecture Diagram
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete architecture diagram + elaboration.
+
 ## Data Quality Strategy
 
 The pipeline uses a **config-driven, schema-first** approach:

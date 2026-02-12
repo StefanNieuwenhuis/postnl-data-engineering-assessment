@@ -14,61 +14,6 @@ The data product ingests transport and delivery data from multiple sources, proc
 | Data Quality | Great Expectations |
 | Orchestration | Databricks Workflows (primary) / Airflow MWAA (alternative) |
 
-### General Architecture Diagram
-
-```mermaid
-flowchart TB
-    subgraph Sources["Data Sources"]
-        CSV[("CSV\nShipments, Vehicles")]
-        JSON[("JSON\nRoutes, Weather")]
-    end
-
-    subgraph AWS["AWS Cloud"]
-        subgraph S3["S3 Data Lake"]
-            LANDING[("Landing Zone")]
-            BRONZE[("Bronze\nRaw + Metadata")]
-            SILVER[("Silver\nCleaned")]
-            GOLD[("Gold\nRoute Performance KPIs")]
-        end
-
-        subgraph Databricks["Databricks"]
-            SPARK[("Spark / Delta")]
-        end
-
-        subgraph Gov["Governance"]
-            UC[("Unity Catalog")]
-            LF[("Lake Formation")]
-        end
-
-        subgraph Ops["Orchestration & Quality"]
-            ORCH[("Workflows / MWAA")]
-            GX[("Great Expectations")]
-        end
-    end
-
-    subgraph Consumers["Consumers"]
-        BI[("BI / Dashboards")]
-        ML[("ML / Analytics")]
-    end
-
-    CSV --> LANDING
-    JSON --> LANDING
-    LANDING --> BRONZE
-    BRONZE --> SILVER
-    SILVER --> GOLD
-    GOLD --> BI
-    GOLD --> ML
-
-    SPARK -.-> BRONZE
-    SPARK -.-> SILVER
-    SPARK -.-> GOLD
-    ORCH -.-> SPARK
-    GX -.-> BRONZE
-    GX -.-> SILVER
-    GX -.-> GOLD
-    UC -.-> S3
-    LF -.-> S3
-```
 
 #### How to Read the Diagram
 
