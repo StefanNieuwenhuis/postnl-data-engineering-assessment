@@ -41,13 +41,12 @@ class QuarantineUtils:
         if df.isEmpty():
             return
 
-        quarantine_row_hash = F.sha2(
-            F.coalesce(
-                # F.col(CORRUPT_RECORD_COLUMN),
-                F.concat_ws("||", *[F.col(c).cast("string") for c in df.columns])
-            ),
-            256
-        )
+        # Use stable columns for hash (exclude ingestion_timestamp, run_id, etc.) for idempotency
+        if CORRUPT_RECORD_COLUMN in df.columns and "source_file" in df.columns:
+            hash_input = F.concat_ws("||", F.col("source_file"), F.col(CORRUPT_RECORD_COLUMN))
+        else:
+            hash_input = F.concat_ws("||", *[F.col(c).cast("string") for c in df.columns])
+        quarantine_row_hash = F.sha2(F.coalesce(hash_input, F.lit("")), 256)
         merge_keys = ["source_file", "quarantine_row_hash"]
 
         # add quarantine row hash as column to the DataFrame
