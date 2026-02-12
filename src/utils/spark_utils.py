@@ -1,16 +1,18 @@
 import logging
 from typing import Optional
 
-from pyspark.sql import DataFrame
 import pyspark.sql.functions as F
-
+from pyspark.sql import DataFrame
 
 logger = logging.getLogger(__name__)
+
 
 class SparkUtils:
 
     @staticmethod
-    def add_metadata(df: DataFrame, run_id: str, source: str, source_file: Optional[str] = None) -> DataFrame:
+    def add_metadata(
+        df: DataFrame, run_id: str, source: str, source_file: Optional[str] = None
+    ) -> DataFrame:
         """
         Add metadata columns to a DataFrame
 

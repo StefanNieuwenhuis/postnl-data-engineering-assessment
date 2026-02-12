@@ -5,7 +5,11 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType
 
 from core.configuration_manager import ConfigurationManager
-from schema_registry.schema_registry import CORRUPT_RECORD_COLUMN, SCHEMAS, schema_with_corrupt_record
+from schema_registry.schema_registry import (
+    CORRUPT_RECORD_COLUMN,
+    SCHEMAS,
+    schema_with_corrupt_record,
+)
 from sinks.delta_sink import DeltaSink
 from utils.quarantine_utils import QuarantineUtils
 from utils.spark_utils import SparkUtils
@@ -27,13 +31,13 @@ class BronzeLayerManager:
         self.cm = cm
 
     def _ingest_batch(
-            self,
-            dataset_name: str,
-            source_path: str,
-            run_id: str,
-            data_format: str,
-            schema: Optional[StructType] = None,
-            quarantine: bool = False,
+        self,
+        dataset_name: str,
+        source_path: str,
+        run_id: str,
+        data_format: str,
+        schema: Optional[StructType] = None,
+        quarantine: bool = False,
     ) -> DataFrame:
         """
         Ingest data from a batch data source
@@ -72,7 +76,9 @@ class BronzeLayerManager:
         if use_corrupt_record and CORRUPT_RECORD_COLUMN in df.columns:
             valid_df, corrupt_df = QuarantineUtils.split_valid_invalid(df)
             quarantine_path = self.cm.get_quarantine_path(dataset_name)
-            corrupt_df = SparkUtils.add_metadata(corrupt_df, run_id, dataset_name, source_file=source_path)
+            corrupt_df = SparkUtils.add_metadata(
+                corrupt_df, run_id, dataset_name, source_file=source_path
+            )
             QuarantineUtils.merge_upsert(self.spark, corrupt_df, quarantine_path, dataset_name)
 
             df = valid_df
@@ -90,11 +96,11 @@ class BronzeLayerManager:
         return df
 
     def _ingest_stream(
-            self,
-            dataset_name: str,
-            path_dir: str,
-            run_id: str,
-            data_format: str,
+        self,
+        dataset_name: str,
+        path_dir: str,
+        run_id: str,
+        data_format: str,
     ) -> None:
         """
         Ingest data from a streaming data source
@@ -119,16 +125,17 @@ class BronzeLayerManager:
 
             logger.info(f"Using predefined schema for {dataset_name}")
 
-            stream_df = (self.spark.readStream
-                         .schema(schema)
-                         .option("multiline", "true")
-                         .json(path_dir))
+            stream_df = (
+                self.spark.readStream.schema(schema).option("multiline", "true").json(path_dir)
+            )
         else:
             # For other formats, use load() with format
             stream_df = self.spark.readStream.load(path_dir, format=data_format)
 
         # Add bronze metadata (pass path_dir so source_file is set for streaming)
-        stream_with_meta = SparkUtils.add_metadata(stream_df, run_id, dataset_name, source_file=path_dir)
+        stream_with_meta = SparkUtils.add_metadata(
+            stream_df, run_id, dataset_name, source_file=path_dir
+        )
 
         checkpoint_path = f"{self.cm.get_bucket('bronze')}/checkpoints/{dataset_name}"
         output_path = self.cm.get_layer_path("bronze", dataset_name)
@@ -138,13 +145,10 @@ class BronzeLayerManager:
             """Merge each micro-batch into bronze"""
             if batch_df.isEmpty():
                 return
-            DeltaSink.upsert_with_merge(self.spark,
-                                        batch_df, output_path, dataset_name, merge_keys
-                                        )
+            DeltaSink.upsert_with_merge(self.spark, batch_df, output_path, dataset_name, merge_keys)
 
         query = (
-            stream_with_meta.writeStream
-            .foreachBatch(process_batch)
+            stream_with_meta.writeStream.foreachBatch(process_batch)
             .trigger(availableNow=True)
             .option("checkpointLocation", checkpoint_path)
             .start()

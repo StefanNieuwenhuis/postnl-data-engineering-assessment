@@ -22,8 +22,11 @@ class GoldLayerManager:
         """
 
         metadata_cols = [
-            "ingestion_timestamp", "ingestion_date",
-            "run_id", "source_system", "source_file"
+            "ingestion_timestamp",
+            "ingestion_date",
+            "run_id",
+            "source_system",
+            "source_file",
         ]
         existing_metadata = [col for col in metadata_cols if col in df.columns]
         if existing_metadata:
@@ -52,9 +55,7 @@ class GoldLayerManager:
             "arrival_status",
             F.when(F.col("delay_minutes") > 0, "LATE")
             .when(F.col("delay_minutes") < 0, "EARLY")
-            .when(
-                F.col("delay_minutes").isNull(), "NULL"
-            )
+            .when(F.col("delay_minutes").isNull(), "NULL")
             .otherwise("ON_TIME"),
         )
 
@@ -91,8 +92,7 @@ class GoldLayerManager:
             .withColumn(
                 "delay_pct",
                 F.when(
-                    (F.col("expected_minutes").isNotNull())
-                    & (F.col("expected_minutes") > 0),
+                    (F.col("expected_minutes").isNotNull()) & (F.col("expected_minutes") > 0),
                     F.col("delay_minutes") / F.col("expected_minutes"),
                 ),
             )
@@ -126,14 +126,32 @@ class GoldLayerManager:
         weather_df = self.spark.read.format(output_format).load(weather_source_path)
 
         gold_cols = [
-            "shipment_id", "route_id", "vehicle_id", "carrier_id",
-            "origin_region", "destination_region", "origin_city", "destination_city",
-            "vehicle_type", "fuel_type",
-            "norm_ship_date", "norm_planned_arrival", "norm_actual_arrival",
-            "distance_km", "avg_speed_kmh", "toll_eur",
-            "weight_kg", "volume_m3",
-            "delay_minutes", "arrival_status", "emission_kg", "efficiency_score",
-            "condition", "temperature_c", "wind_kph", "precipitation_mm"
+            "shipment_id",
+            "route_id",
+            "vehicle_id",
+            "carrier_id",
+            "origin_region",
+            "destination_region",
+            "origin_city",
+            "destination_city",
+            "vehicle_type",
+            "fuel_type",
+            "norm_ship_date",
+            "norm_planned_arrival",
+            "norm_actual_arrival",
+            "distance_km",
+            "avg_speed_kmh",
+            "toll_eur",
+            "weight_kg",
+            "volume_m3",
+            "delay_minutes",
+            "arrival_status",
+            "emission_kg",
+            "efficiency_score",
+            "condition",
+            "temperature_c",
+            "wind_kph",
+            "precipitation_mm",
         ]
 
         output_path = f"{self.cm.get_bucket(dest_layer)}/{self.cm.get(dest_layer, "route_performance", default="route_performance")}"
@@ -142,19 +160,22 @@ class GoldLayerManager:
             shipments_df.alias("target")
             .join(vehicles_df.alias("vehicles_source"), on="vehicle_id", how="left")
             .join(routes_df.alias("routes_source"), on="route_id", how="left")
-            .join(weather_df.alias("weather_source"),
-                  on=((F.col("weather_source.norm_date") == F.col("target.norm_ship_date")) & (F.col("weather_source.region") == F.col("routes_source.origin_region"))
-                  )
-                  , how="left")
+            .join(
+                weather_df.alias("weather_source"),
+                on=(
+                    (F.col("weather_source.norm_date") == F.col("target.norm_ship_date"))
+                    & (F.col("weather_source.region") == F.col("routes_source.origin_region"))
+                ),
+                how="left",
+            )
             .transform(lambda df: self._compute_emission_kg(df))
             .transform(lambda df: self._compute_delay_minutes(df))
             .transform(lambda df: self._compute_time_efficiency(df))
             .select(gold_cols)
-            .write
-            .format("delta")
+            .write.format("delta")
             .mode("overwrite")
             # partitionOverwriteMode=dynamic: only overwrite partitions present in data (incremental)
             .option("partitionOverwriteMode", "dynamic")
             .partitionBy(["norm_ship_date", "origin_region"])
             .save(output_path)
-         )
+        )

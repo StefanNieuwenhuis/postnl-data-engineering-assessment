@@ -157,4 +157,7 @@ class TestConfigurationManager:
             cm = ConfigurationManager(str(config_path))
 
             assert cm.get_quarantine_path("shipments") == "s3a://bronze/_quarantine/shipments"
-            assert cm.get_quarantine_path("shipments", layer="silver") == "s3a://silver/_quarantine/shipments"
+            assert (
+                cm.get_quarantine_path("shipments", layer="silver")
+                == "s3a://silver/_quarantine/shipments"
+            )

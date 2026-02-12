@@ -1,13 +1,14 @@
 import logging
 from typing import Tuple
 
-from pyspark.sql import DataFrame, SparkSession
 import pyspark.sql.functions as F
+from pyspark.sql import DataFrame, SparkSession
 
 from schema_registry.schema_registry import CORRUPT_RECORD_COLUMN
 from sinks.delta_sink import DeltaSink
 
 logger = logging.getLogger(__name__)
+
 
 class QuarantineUtils:
     @staticmethod
@@ -25,10 +26,7 @@ class QuarantineUtils:
 
     @staticmethod
     def merge_upsert(
-        spark: SparkSession,
-        df: DataFrame,
-        quarantine_path: str,
-        dataset_name: str
+        spark: SparkSession, df: DataFrame, quarantine_path: str, dataset_name: str
     ) -> None:
         """
         Write corrupt records to quarantine Delta table.
@@ -55,4 +53,6 @@ class QuarantineUtils:
         # upsert (w/ merge) to quarantine
         DeltaSink.upsert_with_merge(spark, df_with_hash, quarantine_path, dataset_name, merge_keys)
 
-        logger.warning(f"Quarantined {df_with_hash.count():,} corrupt records for {dataset_name} to {quarantine_path}")
+        logger.warning(
+            f"Quarantined {df_with_hash.count():,} corrupt records for {dataset_name} to {quarantine_path}"
+        )

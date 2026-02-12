@@ -12,7 +12,9 @@ def schema_with_corrupt_record(schema: StructType) -> StructType:
     """Add _corrupt_record field to schema for columnNameOfCorruptRecord support."""
     if any(f.name == CORRUPT_RECORD_COLUMN for f in schema.fields):
         return schema
-    return StructType(list(schema.fields) + [StructField(CORRUPT_RECORD_COLUMN, StringType(), nullable=True)])
+    return StructType(
+        list(schema.fields) + [StructField(CORRUPT_RECORD_COLUMN, StringType(), nullable=True)]
+    )
 
 
 SCHEMAS = {

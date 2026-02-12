@@ -50,7 +50,9 @@ class SilverLayerManager:
         logger.info("Normalizing date/timestamp columns complete")
         return df
 
-    def _deduplicate(self, df: DataFrame, key_cols: Optional[List[str]] = None) -> Tuple[DataFrame, DataFrame]:
+    def _deduplicate(
+        self, df: DataFrame, key_cols: Optional[List[str]] = None
+    ) -> Tuple[DataFrame, DataFrame]:
         """
         Deduplicate DataFrame by configured deduplication keys
 
@@ -60,7 +62,7 @@ class SilverLayerManager:
         """
         if not key_cols:
             # no deduplication keys available; return unaltered
-            empty_df = self.spark.createDataFrame(data = [], schema= StructType([]))
+            empty_df = self.spark.createDataFrame(data=[], schema=StructType([]))
             return df, empty_df
 
         logger.info("Start deduplicating records by keys")
@@ -77,8 +79,6 @@ class SilverLayerManager:
         logger.info(f"Deduplication complete")
 
         return df_kept, df_dropped
-
-
 
     def _handle_missing_values(
         self, df: DataFrame, key_cols: Optional[List[str]] = None
@@ -106,7 +106,6 @@ class SilverLayerManager:
         logger.info("Missing values handled")
 
         return valid_df, invalid_df
-
 
     def transform_all(self) -> None:
         datasets = self.cm.get_datasets()
@@ -141,26 +140,36 @@ class SilverLayerManager:
 
                 # Handle missing values
                 missing_dataset_name = f"missing_required_{dataset_name}"
-                df_valid_clean, df_missing = self._handle_missing_values(df_valid_deduplicates, required_cols)
+                df_valid_clean, df_missing = self._handle_missing_values(
+                    df_valid_deduplicates, required_cols
+                )
 
                 final_df = self._normalize_timestamps(df_valid_clean, dataset_name)
 
-                DeltaSink.upsert_with_merge(self.spark, final_df, target_path, dataset_name, merge_keys)
+                DeltaSink.upsert_with_merge(
+                    self.spark, final_df, target_path, dataset_name, merge_keys
+                )
 
                 # Quarantine duplicates and missing values
-                QuarantineUtils.merge_upsert(self.spark, df_duplicates, self.cm.get_quarantine_path(duplicate_dataset_name, target_layer), duplicate_dataset_name)
-                QuarantineUtils.merge_upsert(self.spark, df_missing, self.cm.get_quarantine_path(missing_dataset_name, target_layer),missing_dataset_name)
+                QuarantineUtils.merge_upsert(
+                    self.spark,
+                    df_duplicates,
+                    self.cm.get_quarantine_path(duplicate_dataset_name, target_layer),
+                    duplicate_dataset_name,
+                )
+                QuarantineUtils.merge_upsert(
+                    self.spark,
+                    df_missing,
+                    self.cm.get_quarantine_path(missing_dataset_name, target_layer),
+                    missing_dataset_name,
+                )
 
             # stream data source, and apply transformations
-            stream_df = (
-                self.spark.readStream
-                .load(path=data_source_path, format="delta")
-            )
+            stream_df = self.spark.readStream.load(path=data_source_path, format="delta")
 
             # merge upsert
             query = (
-                stream_df.writeStream
-                .foreachBatch(process_batch)
+                stream_df.writeStream.foreachBatch(process_batch)
                 .option("checkpointLocation", checkpoint_path)
                 .trigger(availableNow=True)
                 .start()
@@ -170,6 +179,3 @@ class SilverLayerManager:
             logger.info("=" * 80)
             logger.info(f"Finished transforming {dataset_name}".center(80))
             logger.info("=" * 80)
-
-
-

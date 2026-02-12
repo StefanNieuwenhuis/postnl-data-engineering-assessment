@@ -3,7 +3,7 @@ import shutil
 import pytest
 import yaml
 from pyspark import Row
-from pyspark.sql.types import StructType, StructField, StringType
+from pyspark.sql.types import StringType, StructField, StructType
 
 from core.configuration_manager import ConfigurationManager
 from layers.bronze_layer_manager import BronzeLayerManager
@@ -69,6 +69,7 @@ def sample_csv(tmp_path) -> str:
     )
     return str(csv_path)
 
+
 @pytest.fixture
 def sample_csv_with_corrupt(tmp_path) -> str:
     """
@@ -84,6 +85,7 @@ def sample_csv_with_corrupt(tmp_path) -> str:
         encoding="utf-8",
     )
     return str(csv_path)
+
 
 @pytest.fixture
 def sample_json(tmp_path) -> str:
@@ -141,7 +143,6 @@ class TestConfigurationManager:
             self, spark_session, bronze_config_yaml
         ) -> None:
             """run_id and source_system columns should have the given literal values"""
-
 
             df = spark_session.createDataFrame([Row(a=1, b="x")])
             run_id = "20260208_120000"

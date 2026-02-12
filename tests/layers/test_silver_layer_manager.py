@@ -4,7 +4,7 @@ from pyspark import Row
 from pyspark.sql import functions as F
 
 from core.configuration_manager import ConfigurationManager
-from layers.silver_layer_manager import SilverLayerManager, QUARANTINE_REASON_COLUMN
+from layers.silver_layer_manager import QUARANTINE_REASON_COLUMN, SilverLayerManager
 
 
 @pytest.fixture
@@ -154,7 +154,9 @@ class TestSilverLayerManager:
                 ]
             )
 
-            valid_df, invalid_df = manager._handle_missing_values(df, key_cols=["shipment_id", "route_id"])
+            valid_df, invalid_df = manager._handle_missing_values(
+                df, key_cols=["shipment_id", "route_id"]
+            )
 
             assert valid_df.count() == 2
             rows = valid_df.collect()
